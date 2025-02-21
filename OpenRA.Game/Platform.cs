@@ -12,7 +12,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace OpenRA
@@ -63,21 +62,7 @@ namespace OpenRA
 			return PlatformType.Unknown;
 		}
 
-		public static string RuntimeVersion
-		{
-			get
-			{
-				var mono = Type.GetType("Mono.Runtime");
-				if (mono == null)
-					return $".NET CLR {Environment.Version}";
-
-				var version = mono.GetMethod("GetDisplayName", BindingFlags.NonPublic | BindingFlags.Static);
-				if (version == null)
-					return $"Mono (unknown version) CLR {Environment.Version}";
-
-				return $"Mono {version.Invoke(null, null)} CLR {Environment.Version}";
-			}
-		}
+		public static string RuntimeVersion => $".NET CLR {Environment.Version}";
 
 		public static string OperatingSystem
 		{
@@ -109,14 +94,14 @@ namespace OpenRA
 						var p = Process.Start(psi);
 						string line;
 						while ((line = p.StandardOutput.ReadLine()) != null)
-							if (line.StartsWith("Operating System: "))
+							if (line.StartsWith("Operating System: ", StringComparison.Ordinal))
 								return line[18..] + suffix;
 					}
 					catch { }
 
 					if (File.Exists("/etc/os-release"))
 						foreach (var line in File.ReadLines("/etc/os-release"))
-							if (line.StartsWith("PRETTY_NAME="))
+							if (line.StartsWith("PRETTY_NAME=", StringComparison.Ordinal))
 								return line[13..^1] + suffix;
 				}
 				else if (CurrentPlatform == PlatformType.OSX)
@@ -134,7 +119,7 @@ namespace OpenRA
 						while ((line = p.StandardOutput.ReadLine()) != null)
 						{
 							line = line.Trim();
-							if (line.StartsWith("System Version: "))
+							if (line.StartsWith("System Version: ", StringComparison.Ordinal))
 								return line[16..];
 						}
 					}
@@ -180,7 +165,7 @@ namespace OpenRA
 				case PlatformType.OSX:
 				{
 					modernUserSupportPath = legacyUserSupportPath = Path.Combine(
-						Environment.GetFolderPath(Environment.SpecialFolder.Personal),
+						Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
 						"Library", "Application Support", "OpenRA") + Path.DirectorySeparatorChar;
 
 					systemSupportPath = "/Library/Application Support/OpenRA/";
@@ -189,11 +174,11 @@ namespace OpenRA
 
 				case PlatformType.Linux:
 				{
-					legacyUserSupportPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), ".openra") + Path.DirectorySeparatorChar;
+					legacyUserSupportPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".openra") + Path.DirectorySeparatorChar;
 
 					var xdgConfigHome = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
 					if (string.IsNullOrEmpty(xdgConfigHome))
-						xdgConfigHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), ".config") + Path.DirectorySeparatorChar;
+						xdgConfigHome = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config") + Path.DirectorySeparatorChar;
 
 					modernUserSupportPath = Path.Combine(xdgConfigHome, "openra") + Path.DirectorySeparatorChar;
 					systemSupportPath = "/var/games/openra/";
@@ -203,7 +188,8 @@ namespace OpenRA
 
 				default:
 				{
-					modernUserSupportPath = legacyUserSupportPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Personal), ".openra") + Path.DirectorySeparatorChar;
+					modernUserSupportPath = legacyUserSupportPath =
+						Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".openra") + Path.DirectorySeparatorChar;
 					systemSupportPath = "/var/games/openra/";
 					break;
 				}
@@ -274,7 +260,7 @@ namespace OpenRA
 				throw new DirectoryNotFoundException(path);
 
 			if (!path.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal) &&
-			    !path.EndsWith(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal))
+				!path.EndsWith(Path.AltDirectorySeparatorChar.ToString(), StringComparison.Ordinal))
 				path += Path.DirectorySeparatorChar;
 
 			engineDirAccessed = true;

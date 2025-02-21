@@ -28,7 +28,7 @@ namespace OpenRA.Mods.Common.Traits
 		/// </summary>
 		void ICreatePlayersInfo.CreateServerPlayers(MapPreview map, Session lobbyInfo, List<GameInformation.Player> players, MersenneTwister playerRandom)
 		{
-			var factions = map.WorldActorInfo.TraitInfos<FactionInfo>().ToArray();
+			var factions = map.WorldActorInfo.TraitInfos<FactionInfo>();
 			var assignSpawnLocations = map.WorldActorInfo.TraitInfoOrDefault<IAssignSpawnPointsInfo>();
 			var spawnState = assignSpawnLocations?.InitializeState(map, lobbyInfo);
 
@@ -41,7 +41,7 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			// Create the regular playable players.
-			var bots = map.PlayerActorInfo.TraitInfos<IBotInfo>().ToArray();
+			var bots = map.PlayerActorInfo.TraitInfos<IBotInfo>();
 
 			foreach (var kv in lobbyInfo.Slots)
 			{
@@ -55,7 +55,7 @@ namespace OpenRA.Mods.Common.Traits
 				var player = new GameInformation.Player
 				{
 					ClientIndex = client.Index,
-					Name = Player.ResolvePlayerName(client, lobbyInfo.Clients, bots),
+					Name = client.Name,
 					IsHuman = client.Bot == null,
 					IsBot = client.Bot != null,
 					FactionName = resolvedFaction.Name,

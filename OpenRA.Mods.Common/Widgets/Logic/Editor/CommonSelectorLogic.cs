@@ -19,16 +19,16 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 {
 	public abstract class CommonSelectorLogic : ChromeLogic
 	{
-		[TranslationReference]
+		[FluentReference]
 		const string None = "options-common-selector.none";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SearchResults = "options-common-selector.search-results";
 
-		[TranslationReference]
+		[FluentReference]
 		const string All = "options-common-selector.all";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Multiple = "options-common-selector.multiple";
 
 		protected readonly Widget Widget;
@@ -52,7 +52,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			ModData = modData;
 			World = world;
 			WorldRenderer = worldRenderer;
-			Editor = widget.Parent.Get<EditorViewportControllerWidget>("MAP_EDITOR");
+			Editor = widget.Parent.Parent.Get<EditorViewportControllerWidget>("MAP_EDITOR");
 			Panel = widget.Get<ScrollPanelWidget>(templateListId);
 			ItemTemplate = Panel.Get<ScrollItemWidget>(previewTemplateId);
 			Panel.Layout = new GridLayout(Panel);
@@ -71,10 +71,12 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				return true;
 			};
 
-			var none = TranslationProvider.GetString(None);
-			var searchResults = TranslationProvider.GetString(SearchResults);
-			var all = TranslationProvider.GetString(All);
-			var multiple = TranslationProvider.GetString(Multiple);
+			Editor.DefaultBrush.SelectionChanged += HandleSelectionChanged;
+
+			var none = FluentProvider.GetMessage(None);
+			var searchResults = FluentProvider.GetMessage(SearchResults);
+			var all = FluentProvider.GetMessage(All);
+			var multiple = FluentProvider.GetMessage(Multiple);
 
 			var categorySelector = widget.Get<DropDownButtonWidget>("CATEGORIES_DROPDOWN");
 			categorySelector.GetText = () =>
@@ -101,6 +103,18 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				categorySelector.RemovePanel();
 				categorySelector.AttachPanel(CreateCategoriesPanel(Panel));
 			};
+		}
+
+		protected override void Dispose(bool disposing)
+		{
+			Editor.DefaultBrush.SelectionChanged -= HandleSelectionChanged;
+
+			base.Dispose(disposing);
+		}
+
+		void HandleSelectionChanged()
+		{
+			SearchTextField.YieldKeyboardFocus();
 		}
 
 		protected Widget CreateCategoriesPanel(ScrollPanelWidget panel)
@@ -131,7 +145,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var categoryHeight = 5 + selectButtons.Bounds.Height;
 			foreach (var cat in FilteredCategories)
 			{
-				var category = (CheckboxWidget)categoryTemplate.Clone();
+				var category = categoryTemplate.Clone();
 				category.GetText = () => cat;
 				category.IsChecked = () => SelectedCategories.Contains(cat);
 				category.IsVisible = () => true;

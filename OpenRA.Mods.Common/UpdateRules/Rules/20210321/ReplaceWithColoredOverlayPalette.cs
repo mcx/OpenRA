@@ -24,17 +24,18 @@ namespace OpenRA.Mods.Common.UpdateRules.Rules
 		public override IEnumerable<string> AfterUpdate(ModData modData)
 		{
 			if (locations.Count > 0)
-				yield return "You must define new Color fields on the following traits:\n" +
-				             UpdateUtils.FormatMessageList(locations);
+				yield return
+					"You must define new Color fields on the following traits:\n" +
+					UpdateUtils.FormatMessageList(locations);
 
 			locations.Clear();
 		}
 
-		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNode actorNode)
+		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNodeBuilder actorNode)
 		{
 			foreach (var node in actorNode.ChildrenMatching("WithColoredOverlay"))
 				if (node.RemoveNodes("Palette") > 0)
-					locations.Add($"{actorNode.Key}: {node.Key} ({actorNode.Location.Filename})");
+					locations.Add($"{actorNode.Key}: {node.Key} ({actorNode.Location.Name})");
 
 			yield break;
 		}

@@ -154,7 +154,7 @@ namespace OpenRA
 
 		public virtual void Initialize(MiniYaml yaml)
 		{
-			Initialize((T)FieldLoader.GetValue(nameof(value), typeof(T), yaml.Value));
+			Initialize(FieldLoader.GetValue<T>(nameof(value), yaml.Value));
 		}
 
 		public virtual void Initialize(T value)
@@ -175,8 +175,7 @@ namespace OpenRA
 		protected CompositeActorInit(TraitInfo info)
 			: base(info.InstanceName) { }
 
-		protected CompositeActorInit()
-			: base() { }
+		protected CompositeActorInit() { }
 
 		public virtual void Initialize(MiniYaml yaml)
 		{

@@ -114,9 +114,15 @@ namespace OpenRA.Mods.Common.Traits
 			paxFacing.Add(passenger, passenger.Trait<IFacing>());
 			paxPos.Add(passenger, passenger.Trait<IPositionable>());
 			paxRender.Add(passenger, passenger.Trait<RenderSprites>());
-			armaments.AddRange(
-				passenger.TraitsImplementing<Armament>()
-				.Where(a => Info.Armaments.Contains(a.Info.Name)));
+
+			foreach (var a in passenger.TraitsImplementing<Armament>())
+			{
+				if (Info.Armaments.Contains(a.Info.Name))
+				{
+					a.AddNotifyAttacks(self, notifyAttacks);
+					armaments.Add(a);
+				}
+			}
 		}
 
 		void INotifyPassengerExited.OnPassengerExited(Actor self, Actor passenger)
@@ -124,7 +130,15 @@ namespace OpenRA.Mods.Common.Traits
 			paxFacing.Remove(passenger);
 			paxPos.Remove(passenger);
 			paxRender.Remove(passenger);
-			armaments.RemoveAll(a => a.Actor == passenger);
+
+			foreach (var a in armaments.ToList())
+			{
+				if (a.Actor == passenger)
+				{
+					a.RemoveNotifyAttacks(notifyAttacks);
+					armaments.Remove(a);
+				}
+			}
 		}
 
 		FirePort SelectFirePort(Actor self, WAngle targetYaw)
@@ -171,8 +185,7 @@ namespace OpenRA.Mods.Common.Traits
 				paxFacing[a.Actor].Facing = targetYaw;
 				paxPos[a.Actor].SetCenterPosition(a.Actor, pos + PortOffset(self, port));
 
-				var barrel = a.CheckFire(a.Actor, facing, target);
-				if (barrel == null)
+				if (!a.CheckFire(a.Actor, facing, target))
 					continue;
 
 				if (a.Info.MuzzleSequence != null)
@@ -188,9 +201,6 @@ namespace OpenRA.Mods.Common.Traits
 					muzzles.Add(muzzleFlash);
 					muzzleAnim.PlayThen(sequence, () => muzzles.Remove(muzzleFlash));
 				}
-
-				foreach (var npa in notifyAttacks)
-					npa.Attacking(self, target, a, barrel);
 			}
 		}
 

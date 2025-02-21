@@ -10,6 +10,7 @@
 #endregion
 
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using OpenRA.Traits;
 
@@ -46,7 +47,7 @@ namespace OpenRA.Mods.Common.Traits
 
 		public void CreateControlGroup(int group)
 		{
-			if (!world.Selection.Actors.Any())
+			if (world.Selection.Actors.Count == 0)
 				return;
 
 			controlGroups[group].Clear();
@@ -58,7 +59,7 @@ namespace OpenRA.Mods.Common.Traits
 
 		public void AddSelectionToControlGroup(int group)
 		{
-			if (!world.Selection.Actors.Any())
+			if (world.Selection.Actors.Count == 0)
 				return;
 
 			RemoveActorsFromAllControlGroups(world.Selection.Actors);
@@ -122,26 +123,26 @@ namespace OpenRA.Mods.Common.Traits
 				if (cg.Count > 0)
 				{
 					var actorIds = cg.Select(a => a.ActorID).ToArray();
-					groups.Add(new MiniYamlNode(i.ToString(), FieldSaver.FormatValue(actorIds)));
+					groups.Add(new MiniYamlNode(i.ToStringInvariant(), FieldSaver.FormatValue(actorIds)));
 				}
 			}
 
 			return new List<MiniYamlNode>()
 			{
-				new MiniYamlNode("Groups", new MiniYaml("", groups))
+				new("Groups", new MiniYaml("", groups))
 			};
 		}
 
-		void IGameSaveTraitData.ResolveTraitData(Actor self, List<MiniYamlNode> data)
+		void IGameSaveTraitData.ResolveTraitData(Actor self, MiniYaml data)
 		{
-			var groupsNode = data.FirstOrDefault(n => n.Key == "Groups");
+			var groupsNode = data.NodeWithKeyOrDefault("Groups");
 			if (groupsNode != null)
 			{
 				foreach (var n in groupsNode.Value.Nodes)
 				{
 					var group = FieldLoader.GetValue<uint[]>(n.Key, n.Value.Value)
 						.Select(a => self.World.GetActorById(a)).Where(a => a != null);
-					controlGroups[int.Parse(n.Key)].AddRange(group);
+					controlGroups[Exts.ParseInt32Invariant(n.Key)].AddRange(group);
 				}
 			}
 		}

@@ -12,7 +12,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 
 namespace OpenRA
 {
@@ -64,9 +63,9 @@ namespace OpenRA
 		}
 
 		/// <summary>Returns the minimal region that covers at least the specified cells.</summary>
-		public static CellRegion BoundingRegion(MapGridType shape, IEnumerable<CPos> cells)
+		public static CellRegion BoundingRegion(MapGridType shape, IReadOnlyCollection<CPos> cells)
 		{
-			if (cells == null || !cells.Any())
+			if (cells == null || cells.Count == 0)
 				throw new ArgumentException("cells must not be null or empty.", nameof(cells));
 
 			var minU = int.MaxValue;
@@ -103,6 +102,7 @@ namespace OpenRA
 		}
 
 		public MapCoordsRegion MapCoords => new(mapTopLeft, mapBottomRight);
+		public CellCoordsRegion CellCoords => new(TopLeft, BottomRight);
 
 		public CellRegionEnumerator GetEnumerator()
 		{
@@ -136,12 +136,12 @@ namespace OpenRA
 
 			public bool MoveNext()
 			{
-				u += 1;
+				u++;
 
 				// Check for column overflow
 				if (u > r.mapBottomRight.U)
 				{
-					v += 1;
+					v++;
 					u = r.mapTopLeft.U;
 
 					// Check for row overflow
@@ -162,8 +162,8 @@ namespace OpenRA
 			}
 
 			public CPos Current { get; private set; }
-			object IEnumerator.Current => Current;
-			public void Dispose() { }
+			readonly object IEnumerator.Current => Current;
+			public readonly void Dispose() { }
 		}
 	}
 }

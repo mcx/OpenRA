@@ -18,8 +18,8 @@ namespace OpenRA.Mods.Common.Widgets
 		readonly World world;
 
 		[ObjectCreator.UseCtor]
-		public WorldLabelWithTooltipWidget(World world)
-			: base()
+		public WorldLabelWithTooltipWidget(ModData modData, World world)
+			: base(modData)
 		{
 			this.world = world;
 		}
@@ -30,7 +30,7 @@ namespace OpenRA.Mods.Common.Widgets
 			world = other.world;
 		}
 
-		public override Widget Clone() { return new WorldLabelWithTooltipWidget(this); }
+		public override WorldLabelWithTooltipWidget Clone() { return new WorldLabelWithTooltipWidget(this); }
 
 		public override void MouseEntered()
 		{

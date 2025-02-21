@@ -83,8 +83,8 @@ Player:
 	ChronoshiftPower:
 		Icon: chrono
 		ChargeInterval: 1500
-		Name: Chronoshift
-		Description: Teleport a group of vehicles across\nthe map.
+		Name: actor-player.chronoshiftpower-name
+		Description: actor-player.chronoshiftpower-description
 		SelectTargetSound: slcttgt1.aud
 		BeginChargeSound: chrochr1.aud
 		EndChargeSound: chrordy1.aud
@@ -94,22 +94,23 @@ Player:
 	GrantExternalConditionPower@IRONCURTAIN:
 		Icon: invuln
 		ChargeInterval: 750
-		Name: Invulnerability
-		Description: Makes a unit invulnerable\nfor 3 seconds.
+		Name: actor-player.grantexternalconditionpower-ironcurtain-name
+		Description: actor-player.grantexternalconditionpower-ironcurtain-description
 		Duration: 75
 		SelectTargetSpeechNotification: SelectTarget
 		InsufficientPowerSpeechNotification: InsufficientPower
 		BeginChargeSpeechNotification: IronCurtainCharging
 		EndChargeSpeechNotification: IronCurtainReady
-		SelectTargetTextNotification: Select target.
-		InsufficientPowerTextNotification: Insufficient power.
-		BeginChargeTextNotification: Iron curtain charging.
-		EndChargeTextNotification: Iron curtain ready.
+		SelectTargetTextNotification: notification-select-target
+		InsufficientPowerTextNotification: notification-insufficient-power
+		BeginChargeTextNotification: notification-ironcurtain.charging
+		EndChargeTextNotification: notification-ironcurtain.ready
 		Condition: invulnerability
 		Sequence: idle
 		OnFireSound: ironcur9.aud
 		Dimensions: 3, 3
 		Footprint: _x_ xxx _x_
+		BlockedCursor: move-blocked
 	Production:
 		Produces: Building
 	LobbyPrerequisiteCheckbox@GLOBALBOUNTY:
@@ -126,7 +127,7 @@ MNLYR:
 	Valued:
 		Cost: 800
 	Tooltip:
-		Name: Bomber
+		Name: actor-mnlyr-name
 	Health:
 		HP: 50000
 	Armor:
@@ -175,7 +176,7 @@ MINVV:
 	Buildable:
 		Queue: Building
 		BuildPaletteOrder: 10
-		Description: Bomb which explodes after 8 seconds
+		Description: actor-minvv.description
 	Valued:
 		Cost: 30
 	Health:
@@ -184,12 +185,12 @@ MINVV:
 		Image: miner
 	WithSpriteBody:
 	Tooltip:
-		Name: Bomb
+		Name: actor-minvv.name
 	ChangesHealth:
 		Step: -100
 		Delay: 1
 		StartIfBelow: 101
-	Explodes:
+	FireWarheadsOnDeath:
 		Weapon: CrateNuke
 		EmptyWeapon: CrateNuke
 	HitShape:

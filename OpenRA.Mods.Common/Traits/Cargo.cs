@@ -14,14 +14,13 @@ using System.Collections.Generic;
 using System.Linq;
 using OpenRA.Mods.Common.Activities;
 using OpenRA.Mods.Common.Orders;
-using OpenRA.Mods.Common.Widgets;
 using OpenRA.Primitives;
 using OpenRA.Traits;
 
 namespace OpenRA.Mods.Common.Traits
 {
 	[Desc("This actor can transport Passenger actors.")]
-	public class CargoInfo : TraitInfo, Requires<IOccupySpaceInfo>
+	public class CargoInfo : ConditionalTraitInfo, Requires<IOccupySpaceInfo>
 	{
 		[Desc("The maximum sum of Passenger.Weight that this actor can support.")]
 		public readonly int MaxWeight = 0;
@@ -88,11 +87,10 @@ namespace OpenRA.Mods.Common.Traits
 		public override object Create(ActorInitializer init) { return new Cargo(init, this); }
 	}
 
-	public class Cargo : IIssueOrder, IResolveOrder, IOrderVoice, INotifyCreated, INotifyKilled,
+	public class Cargo : ConditionalTrait<CargoInfo>, IIssueOrder, IResolveOrder, IOrderVoice,
 		INotifyOwnerChanged, INotifySold, INotifyActorDisposing, IIssueDeployOrder,
-		ITransformActorInitModifier
+		INotifyCreated, INotifyKilled, ITransformActorInitModifier
 	{
-		public readonly CargoInfo Info;
 		readonly Actor self;
 		readonly List<Actor> cargo = new();
 		readonly HashSet<Actor> reserves = new();
@@ -108,10 +106,6 @@ namespace OpenRA.Mods.Common.Traits
 		bool takeOffAfterLoad;
 		bool initialised;
 
-		readonly CachedTransform<CPos, IEnumerable<CPos>> currentAdjacentCells;
-
-		public IEnumerable<CPos> CurrentAdjacentCells => currentAdjacentCells.Update(self.Location);
-
 		public IEnumerable<Actor> Passengers => cargo;
 		public int PassengerCount => cargo.Count;
 
@@ -119,13 +113,10 @@ namespace OpenRA.Mods.Common.Traits
 		State state = State.Free;
 
 		public Cargo(ActorInitializer init, CargoInfo info)
+			: base(info)
 		{
 			self = init.Self;
-			Info = info;
 			checkTerrainType = info.UnloadTerrainTypes.Count > 0;
-
-			currentAdjacentCells = new CachedTransform<CPos, IEnumerable<CPos>>(loc =>
-				Util.AdjacentCells(self.World, Target.FromActor(self)).Where(c => loc != c));
 
 			var runtimeCargoInit = init.GetOrDefault<RuntimeCargoInit>(info);
 			var cargoInit = init.GetOrDefault<CargoInit>(info);
@@ -162,8 +153,9 @@ namespace OpenRA.Mods.Common.Traits
 			facing = Exts.Lazy(self.TraitOrDefault<IFacing>);
 		}
 
-		void INotifyCreated.Created(Actor self)
+		protected override void Created(Actor self)
 		{
+			base.Created(self);
 			aircraft = self.TraitOrDefault<Aircraft>();
 
 			if (cargo.Count > 0)
@@ -200,6 +192,9 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			get
 			{
+				if (IsTraitDisabled)
+					yield break;
+
 				yield return new DeployOrderTargeter("Unload", 10,
 					() => CanUnload() ? Info.UnloadCursor : Info.UnloadBlockedCursor);
 			}
@@ -231,23 +226,32 @@ namespace OpenRA.Mods.Common.Traits
 			}
 		}
 
+		public IEnumerable<CPos> CurrentAdjacentCells()
+		{
+			return Util.AdjacentCells(self.World, Target.FromActor(self)).Where(c => self.Location != c);
+		}
+
 		public bool CanUnload(BlockedByActor check = BlockedByActor.None)
 		{
+			if (IsTraitDisabled)
+				return false;
+
 			if (checkTerrainType)
 			{
-				var terrainType = self.World.Map.GetTerrainInfo(self.Location).Type;
+				if (!self.World.Map.Contains(self.Location))
+					return false;
 
-				if (!Info.UnloadTerrainTypes.Contains(terrainType))
+				if (!Info.UnloadTerrainTypes.Contains(self.World.Map.GetTerrainInfo(self.Location).Type))
 					return false;
 			}
 
 			return !IsEmpty() && (aircraft == null || aircraft.CanLand(self.Location, blockedByMobile: false))
-				&& CurrentAdjacentCells != null && CurrentAdjacentCells.Any(c => Passengers.Any(p => !p.IsDead && p.Trait<IPositionable>().CanEnterCell(c, null, check)));
+				&& CurrentAdjacentCells().Any(c => Passengers.Any(p => !p.IsDead && p.Trait<IPositionable>().CanEnterCell(c, null, check)));
 		}
 
 		public bool CanLoad(Actor a)
 		{
-			return reserves.Contains(a) || HasSpace(GetWeight(a));
+			return !IsTraitDisabled && (reserves.Contains(a) || HasSpace(GetWeight(a)));
 		}
 
 		internal bool ReserveSpace(Actor a)
@@ -403,28 +407,36 @@ namespace OpenRA.Mods.Common.Traits
 
 		void INotifyKilled.Killed(Actor self, AttackInfo e)
 		{
-			if (Info.EjectOnDeath)
-				while (!IsEmpty() && CanUnload(BlockedByActor.All))
+			// IsAtGroundLevel contains Map.Contains(self.Location) check.
+			if (Info.EjectOnDeath &&
+				self.IsAtGroundLevel() &&
+				(!checkTerrainType || Info.UnloadTerrainTypes.Contains(self.World.Map.GetTerrainInfo(self.Location).Type)))
+			{
+				while (!IsEmpty())
 				{
 					var passenger = Unload(self);
-					var cp = self.CenterPosition;
-					var inAir = self.World.Map.DistanceAboveTerrain(cp).Length != 0;
-					var positionable = passenger.Trait<IPositionable>();
-					positionable.SetPosition(passenger, self.Location);
-
-					if (!inAir && positionable.CanEnterCell(self.Location, self, BlockedByActor.None))
+					self.World.AddFrameEndTask(w =>
 					{
-						self.World.AddFrameEndTask(w => w.Add(passenger));
-						var nbms = passenger.TraitsImplementing<INotifyBlockingMove>();
-						foreach (var nbm in nbms)
-							nbm.OnNotifyBlockingMove(passenger, passenger);
-					}
-					else
-						passenger.Kill(e.Attacker);
-				}
+						var positionable = passenger.Trait<IPositionable>();
+						if (positionable.CanEnterCell(self.Location, self, BlockedByActor.All))
+						{
+							positionable.SetPosition(passenger, self.Location);
+							w.Add(passenger);
 
-			foreach (var c in cargo)
-				c.Kill(e.Attacker);
+							var nbms = passenger.TraitsImplementing<INotifyBlockingMove>();
+							foreach (var nbm in nbms)
+								nbm.OnNotifyBlockingMove(passenger, passenger);
+
+							passenger.Trait<Passenger>().OnEjectedFromKilledCargo(passenger);
+						}
+						else
+							passenger.Kill(e.Attacker);
+					});
+				}
+			}
+			else
+				foreach (var c in cargo)
+					c.Kill(e.Attacker);
 
 			cargo.Clear();
 		}

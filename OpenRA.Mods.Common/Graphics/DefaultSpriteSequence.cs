@@ -36,7 +36,8 @@ namespace OpenRA.Mods.Common.Graphics
 				IndexedSheetSize = FieldLoader.GetValue<int>("IndexedSheetSize", yaml.Value);
 		}
 
-		public virtual ISpriteSequence CreateSequence(ModData modData, string tileset, SpriteCache cache, string image, string sequence, MiniYaml data, MiniYaml defaults)
+		public virtual ISpriteSequence CreateSequence(
+			ModData modData, string tileset, SpriteCache cache, string image, string sequence, MiniYaml data, MiniYaml defaults)
 		{
 			return new DefaultSpriteSequence(cache, this, image, sequence, data, defaults);
 		}
@@ -44,12 +45,13 @@ namespace OpenRA.Mods.Common.Graphics
 		int ISpriteSequenceLoader.BgraSheetSize => BgraSheetSize;
 		int ISpriteSequenceLoader.IndexedSheetSize => IndexedSheetSize;
 
-		IReadOnlyDictionary<string, ISpriteSequence> ISpriteSequenceLoader.ParseSequences(ModData modData, string tileset, SpriteCache cache, MiniYamlNode imageNode)
+		IReadOnlyDictionary<string, ISpriteSequence> ISpriteSequenceLoader.ParseSequences(
+			ModData modData, string tileset, SpriteCache cache, MiniYamlNode imageNode)
 		{
 			var sequences = new Dictionary<string, ISpriteSequence>();
-			var node = imageNode.Value.Nodes.SingleOrDefault(n => n.Key == "Defaults");
+			var node = imageNode.Value.NodeWithKeyOrDefault("Defaults");
 			var defaults = node?.Value ?? NoData;
-			imageNode.Value.Nodes.Remove(node);
+			imageNode = imageNode.WithValue(imageNode.Value.WithNodes(imageNode.Value.Nodes.Remove(node)));
 
 			foreach (var sequenceNode in imageNode.Value.Nodes)
 			{
@@ -120,6 +122,9 @@ namespace OpenRA.Mods.Common.Graphics
 		[Desc("File name of the sprite to use for this sequence.")]
 		protected static readonly SpriteSequenceField<string> Filename = new(nameof(Filename), null);
 
+		[Desc("File name pattern to build the sprite to use for this sequence.")]
+		protected static readonly SpriteSequenceField<string> FilenamePattern = new(nameof(FilenamePattern), null);
+
 		[Desc("Frame index to start from.")]
 		protected static readonly SpriteSequenceField<int> Start = new(nameof(Start), 0);
 
@@ -132,14 +137,16 @@ namespace OpenRA.Mods.Common.Graphics
 		[Desc("The number of facings that are provided by sprite frames. Use negative values to rotate counter-clockwise.")]
 		protected static readonly SpriteSequenceField<int> Facings = new(nameof(Facings), 1);
 
-		[Desc("The total number of facings for the sequence. If >Facings, the closest facing sprite will be rotated to match. Use negative values to rotate counter-clockwise.")]
+		[Desc("The total number of facings for the sequence. " +
+			"If >Facings, the closest facing sprite will be rotated to match. " +
+			"Use negative values to rotate counter-clockwise.")]
 		protected static readonly SpriteSequenceField<int?> InterpolatedFacings = new(nameof(InterpolatedFacings), null);
 
 		[Desc("Time (in milliseconds at default game speed) to wait until playing the next frame in the animation.")]
 		protected static readonly SpriteSequenceField<int> Tick = new(nameof(Tick), 40);
 
 		[Desc("Value controlling the Z-order. A higher values means rendering on top of other sprites at the same position. " +
-		      "Use power of 2 values to avoid glitches.")]
+			"Use power of 2 values to avoid glitches.")]
 		protected static readonly SpriteSequenceField<WDist> ZOffset = new(nameof(ZOffset), WDist.Zero);
 
 		[Desc("Additional sprite depth Z offset to apply as a function of sprite Y (0: vertical, 1: flat on terrain)")]
@@ -199,6 +206,8 @@ namespace OpenRA.Mods.Common.Graphics
 		protected static readonly SpriteSequenceField<float2> DepthSpriteOffset = new(nameof(DepthSpriteOffset), float2.Zero);
 
 		protected static readonly MiniYaml NoData = new(null);
+		protected static readonly int[] FirstFrame = { 0 };
+
 		protected readonly ISpriteSequenceLoader Loader;
 
 		protected string image;
@@ -262,7 +271,7 @@ namespace OpenRA.Mods.Common.Graphics
 
 		protected static T LoadField<T>(string key, T fallback, MiniYaml data, MiniYaml defaults = null)
 		{
-			var node = data.Nodes.Find(n => n.Key == key) ?? defaults?.Nodes.Find(n => n.Key == key);
+			var node = data.NodeWithKeyOrDefault(key) ?? defaults?.NodeWithKeyOrDefault(key);
 			if (node == null)
 				return fallback;
 
@@ -276,7 +285,7 @@ namespace OpenRA.Mods.Common.Graphics
 
 		protected static T LoadField<T>(SpriteSequenceField<T> field, MiniYaml data, MiniYaml defaults, out MiniYamlNode.SourceLocation location)
 		{
-			var node = data.Nodes.Find(n => n.Key == field.Key) ?? defaults?.Nodes.Find(n => n.Key == field.Key);
+			var node = data.NodeWithKeyOrDefault(field.Key) ?? defaults?.NodeWithKeyOrDefault(field.Key);
 			if (node == null)
 			{
 				location = default;
@@ -297,7 +306,8 @@ namespace OpenRA.Mods.Common.Graphics
 			return Rectangle.FromLTRB(left, top, right, bottom);
 		}
 
-		protected static List<int> CalculateFrameIndices(int start, int? length, int stride, int facings, int[] frames, bool transpose, bool reverseFacings, int shadowStart)
+		protected static List<int> CalculateFrameIndices(
+			int start, int? length, int stride, int facings, int[] frames, bool transpose, bool reverseFacings, int shadowStart)
 		{
 			// Request all frames
 			if (length == null)
@@ -330,10 +340,21 @@ namespace OpenRA.Mods.Common.Graphics
 
 		protected virtual IEnumerable<ReservationInfo> ParseFilenames(ModData modData, string tileset, int[] frames, MiniYaml data, MiniYaml defaults)
 		{
+			var filenamePatternNode = data.NodeWithKeyOrDefault(FilenamePattern.Key) ?? defaults.NodeWithKeyOrDefault(FilenamePattern.Key);
+			if (!string.IsNullOrEmpty(filenamePatternNode?.Value.Value))
+			{
+				var patternStart = LoadField("Start", 0, filenamePatternNode.Value);
+				var patternCount = LoadField("Count", 1, filenamePatternNode.Value);
+
+				return Enumerable.Range(patternStart, patternCount).Select(i =>
+					new ReservationInfo(filenamePatternNode.Value.Value.FormatInvariant(i),
+						FirstFrame, FirstFrame, filenamePatternNode.Location));
+			}
+
 			var filename = LoadField(Filename, data, defaults, out var location);
 
 			var loadFrames = CalculateFrameIndices(start, length, stride ?? length ?? 0, facings, frames, transpose, reverseFacings, shadowStart);
-			yield return new ReservationInfo(filename, loadFrames, frames, location);
+			return new[] { new ReservationInfo(filename, loadFrames, frames, location) };
 		}
 
 		protected virtual IEnumerable<ReservationInfo> ParseCombineFilenames(ModData modData, string tileset, int[] frames, MiniYaml data)
@@ -392,8 +413,20 @@ namespace OpenRA.Mods.Common.Graphics
 				facings = -facings;
 			}
 
-			if (interpolatedFacings != null && (interpolatedFacings < 2 || interpolatedFacings <= facings || interpolatedFacings > 1024 || !Exts.IsPowerOf2(interpolatedFacings.Value)))
-				throw new YamlException($"{interpolatedFacingsLocation}: {InterpolatedFacings.Key} must be greater than {Facings.Key}, within the range of 2 to 1024, and a power of 2.");
+			// Facings must be an integer factor of 1024 (i.e. 1024 / facings is an integer) to allow the frames to be
+			// mapped uniformly over the full rotation range. This implies that it is a power of 2.
+			if (facings == 0 || facings > 1024 || !Exts.IsPowerOf2(facings))
+				throw new YamlException(
+					$"{facingsLocation}: {Facings.Key} must be within the (positive or negative) range of 1 to 1024, and a power of 2.");
+
+			if (interpolatedFacings != null &&
+				(interpolatedFacings < 2 ||
+				interpolatedFacings <= facings ||
+				interpolatedFacings > 1024 ||
+				!Exts.IsPowerOf2(interpolatedFacings.Value)))
+				throw new YamlException(
+					$"{interpolatedFacingsLocation}: {InterpolatedFacings.Key} must be greater than {Facings.Key}, " +
+					"within the range of 2 to 1024, and a power of 2.");
 
 			if (length != null && length <= 0)
 				throw new YamlException($"{lengthLocation}: {Length.Key} must be positive.");
@@ -414,10 +447,10 @@ namespace OpenRA.Mods.Common.Graphics
 			var offset = LoadField(Offset, data, defaults);
 			var blendMode = LoadField(BlendMode, data, defaults);
 
-			var combineNode = data.Nodes.Find(n => n.Key == Combine.Key);
+			var combineNode = data.NodeWithKeyOrDefault(Combine.Key);
 			if (combineNode != null)
 			{
-				for (var i = 0; i < combineNode.Value.Nodes.Count; i++)
+				for (var i = 0; i < combineNode.Value.Nodes.Length; i++)
 				{
 					var subData = combineNode.Value.Nodes[i].Value;
 					var subOffset = LoadField(Offset, subData, NoData);
@@ -511,6 +544,8 @@ namespace OpenRA.Mods.Common.Graphics
 			if (reverses)
 			{
 				index.AddRange(index.Skip(1).Take(length.Value - 2).Reverse());
+				alpha = alpha?.Concat(alpha.Skip(1).Take(length.Value - 2).Reverse()).ToArray();
+
 				length = 2 * length - 2;
 			}
 

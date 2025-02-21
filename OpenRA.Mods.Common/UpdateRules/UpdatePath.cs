@@ -15,7 +15,7 @@ using OpenRA.Mods.Common.UpdateRules.Rules;
 
 namespace OpenRA.Mods.Common.UpdateRules
 {
-	public class UpdatePath
+	public sealed class UpdatePath
 	{
 		// Define known update paths from stable tags to the current bleed tip
 		//
@@ -31,34 +31,7 @@ namespace OpenRA.Mods.Common.UpdateRules
 		// release-to-bleed path.
 		static readonly UpdatePath[] Paths =
 		{
-			new UpdatePath("release-20200503", "release-20210321", new UpdateRule[]
-			{
-				new AddPipDecorationTraits(),
-				new ModernizeDecorationTraits(),
-				new RenameHealCrateAction(),
-				new RenameInfiltrationNotifications(),
-				new MoveClassicFacingFudge(),
-				new RenameWithNukeLaunch(),
-				new SpawnActorPowerDefaultEffect(),
-				new RemoveConditionManager(),
-				new ConvertSupportPowerRangesToFootprint(),
-				new UpdateTilesetColors(),
-				new UpdateMapInits(),
-				new CreateFlashPaletteEffectWarhead(),
-				new ChangeTargetLineDelayToMilliseconds(),
-				new ReplaceFacingAngles(),
-				new RenameSelfHealing(),
-				new ReplaceBurns(),
-				new RemoveMuzzleSplitFacings(),
-				new RenameStances(),
-				new RemoveTurnToDock(),
-				new RenameSmudgeSmokeFields(),
-				new RenameCircleContrast(),
-				new SplitDamagedByTerrain(),
-				new RemoveLaysTerrain(),
-			}),
-
-			new UpdatePath("release-20210321", "release-20230225", new UpdateRule[]
+			new("release-20210321", "release-20230225", new UpdateRule[]
 			{
 				new RenameMPTraits(),
 				new RemovePlayerHighlightPalette(),
@@ -72,36 +45,61 @@ namespace OpenRA.Mods.Common.UpdateRules
 				new RemoveSmokeTrailWhenDamaged(),
 				new ReplaceCrateSecondsWithTicks(),
 				new UseMillisecondsForSounds(),
-				new UnhardcodeSquadManager(),
 				new RenameSupportPowerDescription(),
 				new AttackBomberFacingTolerance(),
 				new AttackFrontalFacingTolerance(),
 				new RenameCloakTypes(),
 				new SplitNukePowerMissileImage(),
 				new ReplaceSequenceEmbeddedPalette(),
-				new UnhardcodeBaseBuilderBotModule(),
 				new UnhardcodeVeteranProductionIconOverlay(),
 				new RenameContrailProperties(),
 				new RemoveDomainIndex(),
 				new AddControlGroups(),
+
+				// Execute these rules last to avoid premature yaml merge crashes.
+				new UnhardcodeSquadManager(),
+				new UnhardcodeBaseBuilderBotModule(),
 			}),
 
-			new UpdatePath("release-20230225", new UpdateRule[]
+			new("release-20230225", "release-20231010", new UpdateRule[]
 			{
-				// bleed only changes here
 				new TextNotificationsDisplayWidgetRemoveTime(),
-				new ExplicitSequenceFilenames(),
 				new RenameEngineerRepair(),
 				new ProductionTabsWidgetAddTabButtonCollection(),
 				new RemoveTSRefinery(),
 				new RenameMcvCrateAction(),
-				new RemoveSequenceHasEmbeddedPalette(),
 				new RenameContrailWidth(),
+				new RemoveExperienceFromInfiltrates(),
+				new AddColorPickerValueRange(),
+
+				// Execute these rules last to avoid premature yaml merge crashes.
+				new ExplicitSequenceFilenames(),
+				new RemoveSequenceHasEmbeddedPalette(),
 				new RemoveNegativeSequenceLength(),
-			})
+			}),
+
+			new("release-20231010", new UpdateRule[]
+			{
+				// bleed only changes here.
+				new RemoveValidRelationsFromCapturable(),
+				new ExtractResourceStorageFromHarvester(),
+				new ReplacePaletteModifiers(),
+				new RemoveConyardChronoReturnAnimation(),
+				new RemoveEditorSelectionLayerProperties(),
+				new AddMarkerLayerOverlay(),
+				new AddSupportPowerBlockedCursor(),
+				new MovePreviewFacing(),
+				new RenameOnDeath(),
+				new RemoveParentTopParentLeftSubstitutions(),
+				new RenameWidgetSubstitutions(),
+
+				// Execute these rules last to avoid premature yaml merge crashes.
+				new ReplaceCloakPalette(),
+				new AbstractDocking(),
+			}),
 		};
 
-		public static IEnumerable<UpdateRule> FromSource(ObjectCreator objectCreator, string source, bool chain = true)
+		public static IReadOnlyCollection<UpdateRule> FromSource(ObjectCreator objectCreator, string source, bool chain = true)
 		{
 			// Use reflection to identify types
 			var namedType = objectCreator.FindType(source);
@@ -130,12 +128,12 @@ namespace OpenRA.Mods.Common.UpdateRules
 			this.chainToSource = chainToSource;
 		}
 
-		IEnumerable<UpdateRule> Rules(bool chain = true)
+		IReadOnlyCollection<UpdateRule> Rules(bool chain = true)
 		{
 			if (chainToSource != null && chain)
 			{
 				var child = Paths.First(p => p.source == chainToSource);
-				return rules.Concat(child.Rules(chain));
+				return rules.Concat(child.Rules(chain)).ToList();
 			}
 
 			return rules;

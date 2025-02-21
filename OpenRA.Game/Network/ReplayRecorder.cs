@@ -67,7 +67,7 @@ namespace OpenRA.Network
 				}
 			}
 
-			file.WriteArray(initialContent);
+			file.Write(initialContent);
 			writer = new BinaryWriter(file);
 		}
 
@@ -92,8 +92,8 @@ namespace OpenRA.Network
 		public void ReceiveFrame(int clientID, int frame, byte[] data)
 		{
 			var ms = new MemoryStream(4 + data.Length);
-			ms.WriteArray(BitConverter.GetBytes(frame));
-			ms.WriteArray(data);
+			ms.Write(frame);
+			ms.Write(data);
 			Receive(clientID, ms.GetBuffer());
 		}
 

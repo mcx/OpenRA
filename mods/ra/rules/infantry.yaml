@@ -5,12 +5,12 @@ DOG:
 		BuildAtProductionType: Dog
 		BuildPaletteOrder: 50
 		Prerequisites: ~kenn, ~techlevel.infonly
-		Description: Anti-infantry unit.\nCan detect spies.\n  Strong vs Infantry\n  Weak vs Vehicles, Aircraft
+		Description: actor-dog.description
 	Valued:
 		Cost: 200
 	Tooltip:
-		Name: Attack Dog
-		GenericName: Dog
+		Name: actor-dog.name
+		GenericName: actor-dog.generic-name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Selectable:
@@ -76,13 +76,13 @@ E1:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 10
 		Prerequisites: ~barracks, ~techlevel.infonly
-		Description: General-purpose infantry.\n  Strong vs Infantry\n  Weak vs Vehicles, Aircraft
+		Description: actor-e1.description
 	Selectable:
 		Class: E1
 	Valued:
 		Cost: 100
 	Tooltip:
-		Name: Rifle Infantry
+		Name: actor-e1.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
@@ -129,11 +129,11 @@ E2:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 40
 		Prerequisites: ~barr, ~techlevel.infonly
-		Description: Infantry armed with grenades.\n  Strong vs Buildings, Infantry\n  Weak vs Vehicles, Aircraft
+		Description: actor-e2.description
 	Valued:
-		Cost: 160
+		Cost: 150
 	Tooltip:
-		Name: Grenadier
+		Name: actor-e2.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
@@ -158,7 +158,7 @@ E2:
 		RequiresCondition: parachute
 		Palette: player-noshadow
 		IsPlayerPalette: true
-	Explodes:
+	FireWarheadsOnDeath:
 		Weapon: UnitExplodeSmall
 		EmptyWeapon: UnitExplodeSmall
 		DamageSource: Killer
@@ -176,13 +176,13 @@ E3:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 30
 		Prerequisites: ~barracks, ~techlevel.infonly
-		Description: Anti-tank/Anti-aircraft infantry.\n  Strong vs Vehicles, Aircraft\n  Weak vs Infantry
+		Description: actor-e3.description
 	Selectable:
 		Class: E3
 	Valued:
 		Cost: 300
 	Tooltip:
-		Name: Rocket Soldier
+		Name: actor-e3.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
@@ -195,6 +195,9 @@ E3:
 		Weapon: Dragon
 		LocalOffset: 0,0,555
 	Armament@GARRISONED:
+		Name: garrisoned
+		Weapon: RedEye
+	Armament@GARRISONEDSECONDARY:
 		Name: garrisoned
 		Weapon: Dragon
 	TakeCover:
@@ -237,11 +240,11 @@ E4:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 70
 		Prerequisites: ~barr, ftur, ~techlevel.low
-		Description: Advanced anti-structure unit.\n  Strong vs Infantry, Buildings\n  Weak vs Vehicles, Aircraft
+		Description: actor-e4.description
 	Valued:
 		Cost: 300
 	Tooltip:
-		Name: Flamethrower
+		Name: actor-e4.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
@@ -255,7 +258,7 @@ E4:
 		Weapon: Flamer
 	TakeCover:
 		ProneOffset: 160,0,-288
-	Explodes:
+	FireWarheadsOnDeath:
 		Weapon: VisualExplode
 		EmptyWeapon: VisualExplode
 		Chance: 50
@@ -281,11 +284,11 @@ E6:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 60
 		Prerequisites: ~barracks, ~techlevel.infonly
-		Description: Infiltrates and captures\nenemy structures.\n  Unarmed
+		Description: actor-e6.description
 	Valued:
 		Cost: 400
 	Tooltip:
-		Name: Engineer
+		Name: actor-e6.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	WithInfantryBody:
@@ -328,13 +331,13 @@ SPY:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 90
 		Prerequisites: ~!infantry.england, dome, ~tent, ~techlevel.medium
-		Description: Infiltrates enemy structures for intel or\nsabotage. Exact effect depends on the\nbuilding infiltrated.\nLoses disguise when attacking.\nCan detect spies.\n  Strong vs Infantry\n  Weak vs Vehicles, Aircraft\n  Special Ability: Disguised
+		Description: actor-spy.description
 	Valued:
 		Cost: 500
 	-Tooltip:
 	DisguiseTooltip:
-		Name: Spy
-		GenericName: Soldier
+		Name: actor-spy.disguisetooltip-name
+		GenericName: actor-spy.disguisetooltip-generic-name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	-Guard:
@@ -350,8 +353,7 @@ SPY:
 	Infiltrates:
 		Types: SpyInfiltrate
 		Notification: BuildingInfiltrated
-		TextNotification: Building infiltrated.
-		PlayerExperience: 10
+		TextNotification: notification-building-infiltrated
 	AutoTarget:
 		InitialStance: HoldFire
 		InitialStanceAI: HoldFire
@@ -390,7 +392,7 @@ SPY.England:
 	GivesExperience:
 		Experience: 500
 	DisguiseTooltip:
-		Name: British Spy
+		Name: actor-spy-england-disguisetooltip-name
 	RenderSprites:
 		Image: spy
 
@@ -403,11 +405,11 @@ E7:
 		BuildPaletteOrder: 120
 		Prerequisites: ~tent, atek, ~techlevel.high
 		BuildLimit: 1
-		Description: Elite commando infantry. Armed with\ndual pistols and C4.\nMaximum 1 can be trained.\n  Strong vs Infantry, Buildings\n  Weak vs Vehicles, Aircraft\n  Special Ability: Destroy Building with C4
+		Description: actor-e7.description
 	Valued:
-		Cost: 1500
+		Cost: 1800
 	Tooltip:
-		Name: Tanya
+		Name: actor-e7.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
@@ -426,9 +428,6 @@ E7:
 		CustomPipType: red
 		Voice: Move
 	Armament@PRIMARY:
-		Weapon: Colt45
-		LocalOffset: 0,0,0, 0,0,0
-	Armament@SECONDARY:
 		Weapon: Colt45
 		LocalOffset: 0,0,0, 0,0,0
 	Armament@GARRISONED:
@@ -465,11 +464,11 @@ MEDI:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 40
 		Prerequisites: ~tent, ~techlevel.infonly
-		Description: Heals nearby infantry.\n  Unarmed
+		Description: actor-medi.description
 	Valued:
 		Cost: 200
 	Tooltip:
-		Name: Medic
+		Name: actor-medi.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
@@ -508,11 +507,11 @@ MECH:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 100
 		Prerequisites: ~tent, fix, ~techlevel.medium
-		Description: Repairs nearby vehicles and restores\nhusks to working condition by capturing them.\n  Unarmed
+		Description: actor-mech.description
 	Valued:
 		Cost: 500
 	Tooltip:
-		Name: Mechanic
+		Name: actor-mech.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
@@ -542,7 +541,6 @@ MECH:
 		Types: Husk
 		ValidRelationships: Ally
 		EnterCursor: goldwrench
-		PlayerExperience: 10
 	WithInfantryBody:
 		IdleSequences: idle
 		DefaultAttackSequence: repair
@@ -562,7 +560,7 @@ EINSTEIN:
 	Inherits: ^CivInfantry
 	-Wanders:
 	Tooltip:
-		Name: Prof. Einstein
+		Name: actor-einstein-name
 	Mobile:
 		Speed: 68
 	Voiced:
@@ -572,7 +570,7 @@ DELPHI:
 	Inherits: ^CivInfantry
 	-Wanders:
 	Tooltip:
-		Name: Agent Delphi
+		Name: actor-delphi-name
 	Mobile:
 		Speed: 68
 
@@ -583,14 +581,14 @@ CHAN:
 	Selectable:
 		Class: CHAN
 	Tooltip:
-		Name: Scientist
+		Name: actor-chan-name
 
 GNRL:
 	Inherits@1: ^CivInfantry
 	Inherits@2: ^ArmedCivilian
 	-Wanders:
 	Tooltip:
-		Name: General
+		Name: actor-gnrl-name
 	Selectable:
 		Class: GNRL
 	Mobile:
@@ -627,15 +625,15 @@ THF:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 110
 		Prerequisites: ~barr, dome, ~techlevel.medium
-		Description: Steals enemy credits.\nHijacks enemy vehicles.\n  Unarmed
+		Description: actor-thf.description
 	Valued:
 		Cost: 500
 	Tooltip:
-		Name: Thief
+		Name: actor-thf.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
-		HP: 5000
+		HP: 8000
 	RevealsShroud:
 		Range: 5c0
 	Passenger:
@@ -647,8 +645,7 @@ THF:
 	Infiltrates:
 		Types: ThiefInfiltrate
 		Notification: BuildingInfiltrated
-		TextNotification: Building infiltrated.
-		PlayerExperience: 10
+		TextNotification: notification-building-infiltrated
 	Voiced:
 		VoiceSet: ThiefVoice
 	-TakeCover:
@@ -667,14 +664,13 @@ THF:
 		CloakDelay: 120
 		UncloakOn: Attack, Unload, Infiltrate, Demolish, Move
 		DetectionTypes: Cloak
-		IsPlayerPalette: true
 		PauseOnCondition: cloak-force-disabled
 	GrantConditionOnDamageState@UNCLOAK:
 		Condition: cloak-force-disabled
 		ValidDamageStates: Critical
 	Mobile:
 		Voice: Move
-		Speed: 68
+		Speed: 72
 	-AttackFrontal:
 
 SHOK:
@@ -685,11 +681,11 @@ SHOK:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 130
 		Prerequisites: ~barr, stek, tsla, ~infantry.russia, ~techlevel.high
-		Description: Elite infantry with portable Tesla coils.\n  Strong vs Infantry, Vehicles\n  Weak vs Aircraft
+		Description: actor-shok.description
 	Valued:
 		Cost: 350
 	Tooltip:
-		Name: Shock Trooper
+		Name: actor-shok.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Health:
@@ -737,7 +733,7 @@ Zombie:
 	Valued:
 		Cost: 100
 	Tooltip:
-		Name: Zombie
+		Name: actor-zombie.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Buildable:
@@ -745,7 +741,7 @@ Zombie:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 200
 		Prerequisites: ~barracks, ~bio
-		Description: Slow undead. Attacks in close combat.
+		Description: actor-zombie.description
 	Health:
 		HP: 25000
 	Mobile:
@@ -772,8 +768,8 @@ Ant:
 	Valued:
 		Cost: 300
 	Tooltip:
-		Name: Giant Ant
-		GenericName: Ant
+		Name: actor-ant.name
+		GenericName: actor-ant.generic-name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Buildable:
@@ -781,7 +777,7 @@ Ant:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 1954
 		Prerequisites: ~barracks, ~bio
-		Description: Irradiated insect that grew oversize.
+		Description: actor-ant.description
 	Selectable:
 		Bounds: 1024, 1024, 0, -213
 		DecorationBounds: 1280, 1280, 0, -85
@@ -813,7 +809,7 @@ Ant:
 FireAnt:
 	Inherits: Ant
 	Tooltip:
-		Name: Fire Ant
+		Name: actor-fireant-name
 		GenericVisibility: none
 	Mobile:
 		Speed: 68
@@ -829,7 +825,7 @@ FireAnt:
 ScoutAnt:
 	Inherits: Ant
 	Tooltip:
-		Name: Scout Ant
+		Name: actor-scoutant-name
 		GenericVisibility: none
 	Health:
 		HP: 8500
@@ -843,7 +839,7 @@ ScoutAnt:
 WarriorAnt:
 	Inherits: Ant
 	Tooltip:
-		Name: Warrior Ant
+		Name: actor-warriorant-name
 		GenericVisibility: none
 	Mobile:
 		Speed: 56

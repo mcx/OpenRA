@@ -60,11 +60,11 @@ namespace OpenRA.Server
 		static byte[] CreatePingFrame()
 		{
 			var ms = new MemoryStream(21);
-			ms.WriteArray(BitConverter.GetBytes(13));
-			ms.WriteArray(BitConverter.GetBytes(0));
-			ms.WriteArray(BitConverter.GetBytes(0));
+			ms.Write(13);
+			ms.Write(0);
+			ms.Write(0);
 			ms.WriteByte((byte)OrderType.Ping);
-			ms.WriteArray(BitConverter.GetBytes(Game.RunTime));
+			ms.Write(Game.RunTime);
 			return ms.GetBuffer();
 		}
 
@@ -115,7 +115,7 @@ namespace OpenRA.Server
 									frame = BitConverter.ToInt32(bytes, 4);
 									state = ReceiveState.Data;
 
-									if (expectLength < 0 || (server.Type != ServerType.Local && expectLength > MaxOrderLength))
+									if (expectLength < 0 || (server.IsMultiplayer && expectLength > MaxOrderLength))
 									{
 										Log.Write("server", $"Closing socket connection to {EndPoint} because of excessive order length: {expectLength}");
 										return;
@@ -153,9 +153,8 @@ namespace OpenRA.Server
 						return;
 
 					// Regularly check player ping
-					if (lastPingSent.ElapsedMilliseconds > 1000)
-						if (TrySendData(CreatePingFrame()))
-							lastPingSent.Restart();
+					if (lastPingSent.ElapsedMilliseconds > 1000 && TrySendData(CreatePingFrame()))
+						lastPingSent.Restart();
 
 					// Send all data immediately, we will block again on read
 					while (sendQueue.TryTake(out var data, 0))

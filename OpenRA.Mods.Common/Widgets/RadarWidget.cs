@@ -22,13 +22,15 @@ namespace OpenRA.Mods.Common.Widgets
 {
 	public sealed class RadarWidget : Widget, IDisposable
 	{
-		public readonly int ColorFog = Color.FromArgb(128, Color.Black).ToArgb();
-		public readonly int ColorShroud = Color.Black.ToArgb();
+		public readonly uint ColorFog = Color.FromArgb(128, Color.Black).ToArgb();
+		public readonly uint ColorShroud = Color.Black.ToArgb();
 
 		public string WorldInteractionController = null;
 		public int AnimationLength = 5;
 		public string RadarOnlineSound = null;
 		public string RadarOfflineSound = null;
+		public string SoundUp;
+		public string SoundDown;
 		public Func<bool> IsEnabled = () => true;
 		public Action AfterOpen = () => { };
 		public Action AfterClose = () => { };
@@ -63,9 +65,6 @@ namespace OpenRA.Mods.Common.Widgets
 		PlayerRadarTerrain playerRadarTerrain;
 		Player currentPlayer;
 
-		public string SoundUp { get; private set; }
-		public string SoundDown { get; private set; }
-
 		[ObjectCreator.UseCtor]
 		public RadarWidget(World world, WorldRenderer worldRenderer)
 		{
@@ -98,7 +97,6 @@ namespace OpenRA.Mods.Common.Widgets
 
 			// The four layers are stored in a 2x2 grid within a single texture
 			radarSheet = new Sheet(SheetType.BGRA, new Size(2 * previewWidth, 2 * previewHeight).NextPowerOf2());
-			radarSheet.CreateBuffer();
 			radarData = radarSheet.GetData();
 
 			MapBoundsChanged();
@@ -231,7 +229,7 @@ namespace OpenRA.Mods.Common.Widgets
 			{
 				fixed (byte* colorBytes = &radarData[0])
 				{
-					var colors = (int*)colorBytes;
+					var colors = (uint*)colorBytes;
 					if (isRectangularIsometric)
 					{
 						// Odd rows are shifted right by 1px
@@ -250,7 +248,7 @@ namespace OpenRA.Mods.Common.Widgets
 
 		void UpdateShroudCell(PPos puv)
 		{
-			var color = 0;
+			var color = 0u;
 			var cv = currentPlayer.Shroud.GetVisibility(puv);
 			if (!cv.HasFlag(Shroud.CellVisibility.Explored))
 				color = ColorShroud;
@@ -262,7 +260,7 @@ namespace OpenRA.Mods.Common.Widgets
 			{
 				fixed (byte* colorBytes = &radarData[0])
 				{
-					var colors = (int*)colorBytes;
+					var colors = (uint*)colorBytes;
 					foreach (var iuv in world.Map.Unproject(puv))
 					{
 						if (isRectangularIsometric)
@@ -408,7 +406,7 @@ namespace OpenRA.Mods.Common.Widgets
 				{
 					fixed (byte* colorBytes = &radarData[0])
 					{
-						var colors = (int*)colorBytes;
+						var colors = (uint*)colorBytes;
 
 						foreach (var t in world.ActorsWithTrait<IRadarSignature>())
 						{
@@ -474,7 +472,7 @@ namespace OpenRA.Mods.Common.Widgets
 
 			// Odd rows are shifted right by 1px
 			if (isRectangularIsometric && (uv.V & 1) == 1)
-				dx += 1;
+				dx++;
 
 			return new int2(mapRect.X + dx, mapRect.Y + dy);
 		}

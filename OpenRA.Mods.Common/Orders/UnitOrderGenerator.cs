@@ -23,7 +23,7 @@ namespace OpenRA.Mods.Common.Orders
 		readonly string worldSelectCursor = ChromeMetrics.Get<string>("WorldSelectCursor");
 		readonly string worldDefaultCursor = ChromeMetrics.Get<string>("WorldDefaultCursor");
 
-		static Target TargetForInput(World world, CPos cell, int2 worldPixel, MouseInput mi)
+		protected static Target TargetForInput(World world, CPos cell, int2 worldPixel, MouseInput mi)
 		{
 			var actor = world.ScreenMap.ActorsAtMouse(mi)
 				.Where(a => !a.Actor.IsDead && a.Actor.Info.HasTraitInfo<ITargetableInfo>() && !world.FogObscures(a.Actor))
@@ -50,13 +50,13 @@ namespace OpenRA.Mods.Common.Orders
 				.Where(o => o != null)
 				.ToList();
 
-			var actorsInvolved = orders.Select(o => o.Actor).Distinct();
-			if (!actorsInvolved.Any())
+			var actorsInvolved = orders.Select(o => o.Actor).Distinct().ToArray();
+			if (actorsInvolved.Length == 0)
 				yield break;
 
 			// HACK: This is required by the hacky player actions-per-minute calculation
 			// TODO: Reimplement APM properly and then remove this
-			yield return new Order("CreateGroup", actorsInvolved.First().Owner.PlayerActor, false, actorsInvolved.ToArray());
+			yield return new Order("CreateGroup", actorsInvolved[0].Owner.PlayerActor, false, actorsInvolved);
 
 			foreach (var o in orders)
 				yield return CheckSameOrder(o.Order, o.Trait.IssueOrder(o.Actor, o.Order, o.Target, mi.Modifiers.HasModifier(Modifiers.Shift)));
@@ -85,7 +85,7 @@ namespace OpenRA.Mods.Common.Orders
 					return cursorOrder.Cursor;
 
 				useSelect = target.Type == TargetType.Actor && target.Actor.Info.HasTraitInfo<ISelectableInfo>() &&
-					(mi.Modifiers.HasModifier(Modifiers.Shift) || !world.Selection.Actors.Any());
+					(mi.Modifiers.HasModifier(Modifiers.Shift) || world.Selection.Actors.Count == 0);
 			}
 
 			return useSelect ? worldSelectCursor : worldDefaultCursor;
@@ -99,7 +99,10 @@ namespace OpenRA.Mods.Common.Orders
 		public virtual bool InputOverridesSelection(World world, int2 xy, MouseInput mi)
 		{
 			var actor = world.ScreenMap.ActorsAtMouse(xy)
-				.Where(a => !a.Actor.IsDead && a.Actor.Info.HasTraitInfo<ISelectableInfo>() && (a.Actor.Owner.IsAlliedWith(world.RenderPlayer) || !world.FogObscures(a.Actor)))
+				.Where(a =>
+					!a.Actor.IsDead &&
+					a.Actor.Info.HasTraitInfo<ISelectableInfo>() &&
+					(a.Actor.Owner.IsAlliedWith(world.RenderPlayer) || !world.FogObscures(a.Actor)))
 				.WithHighestSelectionPriority(xy, mi.Modifiers);
 
 			if (actor == null)
@@ -134,7 +137,7 @@ namespace OpenRA.Mods.Common.Orders
 		/// First priority is given to orders that interact with the given actors.
 		/// Second priority is given to actors in the given cell.
 		/// </summary>
-		static UnitOrderResult OrderForUnit(Actor self, Target target, CPos xy, MouseInput mi)
+		protected static UnitOrderResult OrderForUnit(Actor self, Target target, CPos xy, MouseInput mi)
 		{
 			if (mi.Button != Game.Settings.Game.MouseButtonPreference.Action)
 				return null;
@@ -156,16 +159,10 @@ namespace OpenRA.Mods.Common.Orders
 			if (mi.Modifiers.HasModifier(Modifiers.Alt))
 				modifiers |= TargetModifiers.ForceMove;
 
-			// The Select(x => x) is required to work around an issue on mono 5.0
-			// where calling OrderBy* on SelectManySingleSelectorIterator can in some
-			// circumstances (which we were unable to identify) replace entries in the
-			// enumeration with duplicates of other entries.
-			// Other action that replace the SelectManySingleSelectorIterator with a
-			// different enumerator type (e.g. .Where(true) or .ToList()) also work.
 			var orders = self.TraitsImplementing<IIssueOrder>()
 				.SelectMany(trait => trait.Orders.Select(x => new { Trait = trait, Order = x }))
-				.Select(x => x)
-				.OrderByDescending(x => x.Order.OrderPriority);
+				.OrderByDescending(x => x.Order.OrderPriority)
+				.ToList();
 
 			for (var i = 0; i < 2; i++)
 			{
@@ -193,7 +190,7 @@ namespace OpenRA.Mods.Common.Orders
 			return order;
 		}
 
-		sealed class UnitOrderResult
+		protected sealed class UnitOrderResult
 		{
 			public readonly Actor Actor;
 			public readonly IOrderTargeter Order;

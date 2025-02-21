@@ -23,8 +23,8 @@ namespace OpenRA.Mods.Common.Widgets
 		public Func<string> GetTooltipText = () => "";
 
 		[ObjectCreator.UseCtor]
-		public LabelWithTooltipWidget()
-			: base()
+		public LabelWithTooltipWidget(ModData modData)
+			: base(modData)
 		{
 			tooltipContainer = Exts.Lazy(() =>
 				Ui.Root.Get<TooltipContainerWidget>(TooltipContainer));
@@ -42,7 +42,7 @@ namespace OpenRA.Mods.Common.Widgets
 			GetTooltipText = other.GetTooltipText;
 		}
 
-		public override Widget Clone() { return new LabelWithTooltipWidget(this); }
+		public override LabelWithTooltipWidget Clone() { return new LabelWithTooltipWidget(this); }
 
 		public override void MouseEntered()
 		{

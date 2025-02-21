@@ -24,7 +24,7 @@ namespace OpenRA.Mods.Common.Traits
 	public class Selection : ISelection, INotifyCreated, INotifyOwnerChanged, ITick, IGameSaveTraitData
 	{
 		public int Hash { get; private set; }
-		public IEnumerable<Actor> Actors => actors;
+		public IReadOnlyCollection<Actor> Actors => actors;
 
 		readonly HashSet<Actor> actors = new();
 		readonly List<Actor> rolloverActors = new();
@@ -43,7 +43,7 @@ namespace OpenRA.Mods.Common.Traits
 			// Not a real hash, but things checking this only care about checking when the selection has changed
 			// For this purpose, having a false positive (forcing a refresh when nothing changed) is much better
 			// than a false negative (selection state mismatch)
-			Hash += 1;
+			Hash++;
 		}
 
 		public virtual void Add(Actor a)
@@ -90,10 +90,13 @@ namespace OpenRA.Mods.Common.Traits
 
 		public virtual void Combine(World world, IEnumerable<Actor> newSelection, bool isCombine, bool isClick)
 		{
+			var newSelectionCollection = newSelection as IReadOnlyCollection<Actor>;
+			newSelectionCollection ??= newSelection.ToList();
+
 			if (isClick)
 			{
 				// TODO: select BEST, not FIRST
-				var adjNewSelection = newSelection.Take(1);
+				var adjNewSelection = newSelectionCollection.Take(1);
 				if (isCombine)
 					actors.SymmetricExceptWith(adjNewSelection);
 				else
@@ -105,17 +108,17 @@ namespace OpenRA.Mods.Common.Traits
 			else
 			{
 				if (isCombine)
-					actors.UnionWith(newSelection);
+					actors.UnionWith(newSelectionCollection);
 				else
 				{
 					actors.Clear();
-					actors.UnionWith(newSelection);
+					actors.UnionWith(newSelectionCollection);
 				}
 			}
 
 			UpdateHash();
 
-			foreach (var a in newSelection)
+			foreach (var a in newSelectionCollection)
 				foreach (var sel in a.TraitsImplementing<INotifySelected>())
 					sel.Selected(a);
 
@@ -178,13 +181,13 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			return new List<MiniYamlNode>()
 			{
-				new MiniYamlNode("Selection", FieldSaver.FormatValue(Actors.Select(a => a.ActorID).ToArray()))
+				new("Selection", FieldSaver.FormatValue(Actors.Select(a => a.ActorID).ToArray()))
 			};
 		}
 
-		void IGameSaveTraitData.ResolveTraitData(Actor self, List<MiniYamlNode> data)
+		void IGameSaveTraitData.ResolveTraitData(Actor self, MiniYaml data)
 		{
-			var selectionNode = data.FirstOrDefault(n => n.Key == "Selection");
+			var selectionNode = data.NodeWithKeyOrDefault("Selection");
 			if (selectionNode != null)
 			{
 				var selected = FieldLoader.GetValue<uint[]>("Selection", selectionNode.Value.Value)
