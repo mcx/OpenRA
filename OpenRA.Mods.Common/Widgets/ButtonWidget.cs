@@ -25,6 +25,7 @@ namespace OpenRA.Mods.Common.Widgets
 		public bool DisableKeyRepeat = false;
 		public bool DisableKeySound = false;
 
+		[FluentReference]
 		public string Text = "";
 		public TextAlign Align = TextAlign.Center;
 		public int LeftMargin = 5;
@@ -54,9 +55,11 @@ namespace OpenRA.Mods.Common.Widgets
 
 		protected Lazy<TooltipContainerWidget> tooltipContainer;
 
+		[FluentReference]
 		public string TooltipText;
 		public Func<string> GetTooltipText;
 
+		[FluentReference]
 		public string TooltipDesc;
 		public Func<string> GetTooltipDesc;
 
@@ -74,7 +77,11 @@ namespace OpenRA.Mods.Common.Widgets
 		{
 			ModRules = modData.DefaultRules;
 
-			GetText = () => Text;
+			var textCache = new CachedTransform<string, string>(s => !string.IsNullOrEmpty(s) ? FluentProvider.GetMessage(s) : "");
+			var tooltipTextCache = new CachedTransform<string, string>(s => !string.IsNullOrEmpty(s) ? FluentProvider.GetMessage(s) : "");
+			var tooltipDescCache = new CachedTransform<string, string>(s => !string.IsNullOrEmpty(s) ? FluentProvider.GetMessage(s) : "");
+
+			GetText = () => textCache.Update(Text);
 			GetColor = () => TextColor;
 			GetColorDisabled = () => TextColorDisabled;
 			GetContrastColorDark = () => ContrastColorDark;
@@ -82,8 +89,8 @@ namespace OpenRA.Mods.Common.Widgets
 			OnMouseUp = _ => OnClick();
 			OnKeyPress = _ => OnClick();
 			IsHighlighted = () => Highlighted;
-			GetTooltipText = () => TooltipText;
-			GetTooltipDesc = () => TooltipDesc;
+			GetTooltipText = () => tooltipTextCache.Update(TooltipText);
+			GetTooltipDesc = () => tooltipDescCache.Update(TooltipDesc);
 			tooltipContainer = Exts.Lazy(() =>
 				Ui.Root.Get<TooltipContainerWidget>(TooltipContainer));
 		}
@@ -240,8 +247,7 @@ namespace OpenRA.Mods.Common.Widgets
 
 			var position = GetTextPosition(text, font, rb);
 
-			// PERF: Avoid LINQ by using Children.Find(...) != null instead of Children.Any(...)
-			var hover = Ui.MouseOverWidget == this || Children.Find(c => c == Ui.MouseOverWidget) != null;
+			var hover = Ui.MouseOverWidget == this || Children.FirstOrDefault(c => c == Ui.MouseOverWidget) != null;
 			DrawBackground(rb, disabled, Depressed, hover, highlighted);
 			if (Contrast)
 				font.DrawTextWithContrast(text, position + stateOffset,
@@ -270,7 +276,7 @@ namespace OpenRA.Mods.Common.Widgets
 			}
 		}
 
-		public override Widget Clone() { return new ButtonWidget(this); }
+		public override ButtonWidget Clone() { return new ButtonWidget(this); }
 		public virtual int UsableWidth => Bounds.Width;
 
 		public virtual void DrawBackground(Rectangle rect, bool disabled, bool pressed, bool hover, bool highlighted)

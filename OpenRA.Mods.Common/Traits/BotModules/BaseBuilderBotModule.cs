@@ -9,12 +9,14 @@
  */
 #endregion
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using OpenRA.Traits;
 
 namespace OpenRA.Mods.Common.Traits
 {
+	[TraitLocation(SystemActors.Player)]
 	[Desc("Manages AI base construction.")]
 	public class BaseBuilderBotModuleInfo : ConditionalTraitInfo
 	{
@@ -131,16 +133,21 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("When should the AI start building specific buildings.")]
 		public readonly Dictionary<string, int> BuildingDelays = null;
 
+		[Desc("Only queue construction of a new structure when above this requirement.")]
+		public readonly int ProductionMinCashRequirement = 500;
+
+		[Desc("Delay (in ticks) between reassigning rally points.")]
+		public readonly int AssignRallyPointsInterval = 100;
+
 		public override object Create(ActorInitializer init) { return new BaseBuilderBotModule(init.Self, this); }
 	}
 
 	public class BaseBuilderBotModule : ConditionalTrait<BaseBuilderBotModuleInfo>, IGameSaveTraitData,
-		IBotTick, IBotPositionsUpdated, IBotRespondToAttack, IBotRequestPauseUnitProduction
+		IBotTick, IBotPositionsUpdated, IBotRespondToAttack, IBotRequestPauseUnitProduction, INotifyActorDisposing
 	{
 		public CPos GetRandomBaseCenter()
 		{
-			var randomConstructionYard = world.Actors.Where(a => a.Owner == player &&
-				Info.ConstructionYardTypes.Contains(a.Info.Name))
+			var randomConstructionYard = constructionYardBuildings.Actors
 				.RandomOrDefault(world.LocalRandom);
 
 			return randomConstructionYard?.Location ?? initialBaseCenter;
@@ -148,20 +155,39 @@ namespace OpenRA.Mods.Common.Traits
 
 		public CPos DefenseCenter { get; private set; }
 
+		// Actor, ActorCount.
+		public Dictionary<string, int> BuildingsBeingProduced = new();
+
 		readonly World world;
 		readonly Player player;
 		PowerManager playerPower;
 		PlayerResources playerResources;
 		IResourceLayer resourceLayer;
+		IPathFinder pathFinder;
 		IBotPositionsUpdated[] positionsUpdatedModules;
 		CPos initialBaseCenter;
-		readonly List<BaseBuilderQueueManager> builders = new();
+
+		readonly Stack<TraitPair<RallyPoint>> rallyPoints = new();
+		int assignRallyPointsTicks;
+
+		readonly BaseBuilderQueueManager[] builders;
+		int currentBuilderIndex = 0;
+
+		readonly ActorIndex.OwnerAndNamesAndTrait<BuildingInfo> refineryBuildings;
+		readonly ActorIndex.OwnerAndNamesAndTrait<BuildingInfo> powerBuildings;
+		readonly ActorIndex.OwnerAndNamesAndTrait<BuildingInfo> constructionYardBuildings;
+		readonly ActorIndex.OwnerAndNamesAndTrait<BuildingInfo> barracksBuildings;
 
 		public BaseBuilderBotModule(Actor self, BaseBuilderBotModuleInfo info)
 			: base(info)
 		{
 			world = self.World;
 			player = self.Owner;
+			builders = new BaseBuilderQueueManager[info.BuildingQueues.Count + info.DefenseQueues.Count];
+			refineryBuildings = new ActorIndex.OwnerAndNamesAndTrait<BuildingInfo>(world, info.RefineryTypes, player);
+			powerBuildings = new ActorIndex.OwnerAndNamesAndTrait<BuildingInfo>(world, info.PowerTypes, player);
+			constructionYardBuildings = new ActorIndex.OwnerAndNamesAndTrait<BuildingInfo>(world, info.ConstructionYardTypes, player);
+			barracksBuildings = new ActorIndex.OwnerAndNamesAndTrait<BuildingInfo>(world, info.BarracksTypes, player);
 		}
 
 		protected override void Created(Actor self)
@@ -169,15 +195,22 @@ namespace OpenRA.Mods.Common.Traits
 			playerPower = self.Owner.PlayerActor.TraitOrDefault<PowerManager>();
 			playerResources = self.Owner.PlayerActor.Trait<PlayerResources>();
 			resourceLayer = self.World.WorldActor.TraitOrDefault<IResourceLayer>();
+			pathFinder = self.World.WorldActor.TraitOrDefault<IPathFinder>();
 			positionsUpdatedModules = self.Owner.PlayerActor.TraitsImplementing<IBotPositionsUpdated>().ToArray();
+
+			var i = 0;
+
+			foreach (var building in Info.BuildingQueues)
+				builders[i++] = new BaseBuilderQueueManager(this, building, player, playerPower, playerResources, resourceLayer);
+
+			foreach (var defense in Info.DefenseQueues)
+				builders[i++] = new BaseBuilderQueueManager(this, defense, player, playerPower, playerResources, resourceLayer);
 		}
 
 		protected override void TraitEnabled(Actor self)
 		{
-			foreach (var building in Info.BuildingQueues)
-				builders.Add(new BaseBuilderQueueManager(this, building, player, playerPower, playerResources, resourceLayer));
-			foreach (var defense in Info.DefenseQueues)
-				builders.Add(new BaseBuilderQueueManager(this, defense, player, playerPower, playerResources, resourceLayer));
+			// Avoid all AIs reevaluating assignments on the same tick, randomize their initial evaluation delay.
+			assignRallyPointsTicks = world.LocalRandom.Next(0, Info.AssignRallyPointsInterval);
 		}
 
 		void IBotPositionsUpdated.UpdatedBaseCenter(CPos newLocation)
@@ -190,14 +223,69 @@ namespace OpenRA.Mods.Common.Traits
 			DefenseCenter = newLocation;
 		}
 
-		bool IBotRequestPauseUnitProduction.PauseUnitProduction => !IsTraitDisabled && !HasAdequateRefineryCount;
+		bool IBotRequestPauseUnitProduction.PauseUnitProduction => !IsTraitDisabled && !HasAdequateRefineryCount();
 
 		void IBotTick.BotTick(IBot bot)
 		{
-			SetRallyPointsForNewProductionBuildings(bot);
+			if (--assignRallyPointsTicks <= 0)
+			{
+				assignRallyPointsTicks = Math.Max(2, Info.AssignRallyPointsInterval);
+				foreach (var rp in world.ActorsWithTrait<RallyPoint>().Where(rp => rp.Actor.Owner == player))
+					rallyPoints.Push(rp);
+			}
+			else
+			{
+				// PERF: Spread out rally point assignments updates across multiple ticks.
+				var updateCount = Exts.IntegerDivisionRoundingAwayFromZero(rallyPoints.Count, assignRallyPointsTicks);
+				for (var i = 0; i < updateCount; i++)
+				{
+					var rp = rallyPoints.Pop();
+					if (rp.Actor.Owner == player && !rp.Actor.Disposed)
+						SetRallyPoint(bot, rp);
+				}
+			}
 
-			foreach (var b in builders)
-				b.Tick(bot);
+			BuildingsBeingProduced.Clear();
+
+			// PERF: We tick only one type of valid queue at a time
+			// if AI gets enough cash, it can fill all of its queues with enough ticks
+			var findQueue = false;
+			var queuesByCategory = AIUtils.FindQueuesByCategory(player);
+			for (int i = 0, builderIndex = currentBuilderIndex; i < builders.Length; i++)
+			{
+				if (++builderIndex >= builders.Length)
+					builderIndex = 0;
+
+				--builders[builderIndex].WaitTicks;
+
+				var queues = queuesByCategory[builders[builderIndex].Category].ToArray();
+				if (queues.Length != 0)
+				{
+					if (!findQueue)
+					{
+						currentBuilderIndex = builderIndex;
+						findQueue = true;
+					}
+
+					// Refresh "BuildingsBeingProduced" only when AI can produce
+					if (playerResources.GetCashAndResources() >= Info.ProductionMinCashRequirement)
+					{
+						foreach (var queue in queues)
+						{
+							var producing = queue.AllQueued().FirstOrDefault();
+							if (producing == null)
+								continue;
+
+							if (BuildingsBeingProduced.TryGetValue(producing.Item, out var number))
+								BuildingsBeingProduced[producing.Item] = number + 1;
+							else
+								BuildingsBeingProduced.Add(producing.Item, 1);
+						}
+					}
+				}
+			}
+
+			builders[currentBuilderIndex].Tick(bot, queuesByCategory);
 		}
 
 		void IBotRespondToAttack.RespondToAttack(IBot bot, Actor self, AttackInfo e)
@@ -217,30 +305,34 @@ namespace OpenRA.Mods.Common.Traits
 					n.UpdatedDefenseCenter(e.Attacker.Location);
 		}
 
-		void SetRallyPointsForNewProductionBuildings(IBot bot)
+		void SetRallyPoint(IBot bot, TraitPair<RallyPoint> rp)
 		{
-			foreach (var rp in world.ActorsWithTrait<RallyPoint>())
-			{
-				if (rp.Actor.Owner != player)
-					continue;
+			var needsRallyPoint = rp.Trait.Path.Count == 0;
 
-				if (rp.Trait.Path.Count == 0 || !IsRallyPointValid(rp.Trait.Path[0], rp.Actor.Info.TraitInfoOrDefault<BuildingInfo>()))
+			if (!needsRallyPoint)
+			{
+				var locomotors = LocomotorsForProducibles(rp.Actor);
+				needsRallyPoint = !IsRallyPointValid(rp.Actor.Location, rp.Trait.Path[0], locomotors, rp.Actor.Info.TraitInfoOrDefault<BuildingInfo>());
+			}
+
+			if (needsRallyPoint)
+			{
+				bot.QueueOrder(new Order("SetRallyPoint", rp.Actor, Target.FromCell(world, ChooseRallyLocationNear(rp.Actor)), false)
 				{
-					bot.QueueOrder(new Order("SetRallyPoint", rp.Actor, Target.FromCell(world, ChooseRallyLocationNear(rp.Actor)), false)
-					{
-						SuppressVisualFeedback = true
-					});
-				}
+					SuppressVisualFeedback = true
+				});
 			}
 		}
 
 		// Won't work for shipyards...
 		CPos ChooseRallyLocationNear(Actor producer)
 		{
+			var locomotors = LocomotorsForProducibles(producer);
 			var possibleRallyPoints = world.Map.FindTilesInCircle(producer.Location, Info.RallyPointScanRadius)
-				.Where(c => IsRallyPointValid(c, producer.Info.TraitInfoOrDefault<BuildingInfo>()));
+				.Where(c => IsRallyPointValid(producer.Location, c, locomotors, producer.Info.TraitInfoOrDefault<BuildingInfo>()))
+				.ToList();
 
-			if (!possibleRallyPoints.Any())
+			if (possibleRallyPoints.Count == 0)
 			{
 				AIUtils.BotDebug("{0} has no possible rallypoint near {1}", producer.Owner, producer.Location);
 				return producer.Location;
@@ -249,19 +341,65 @@ namespace OpenRA.Mods.Common.Traits
 			return possibleRallyPoints.Random(world.LocalRandom);
 		}
 
-		bool IsRallyPointValid(CPos x, BuildingInfo info)
+		Locomotor[] LocomotorsForProducibles(Actor producer)
 		{
-			return info != null && world.IsCellBuildable(x, null, info);
+			// Per-actor production
+			var productions = producer.TraitsImplementing<Production>();
+
+			// Player-wide production
+			if (!productions.Any())
+				productions = producer.World.ActorsWithTrait<Production>().Where(x => x.Actor.Owner != producer.Owner).Select(x => x.Trait);
+
+			var produces = productions.SelectMany(p => p.Info.Produces).ToHashSet();
+			var locomotors = Array.Empty<Locomotor>();
+			if (produces.Count > 0)
+			{
+				// Per-actor production
+				var productionQueues = producer.TraitsImplementing<ProductionQueue>();
+
+				// Player-wide production
+				if (!productionQueues.Any())
+					productionQueues = producer.Owner.PlayerActor.TraitsImplementing<ProductionQueue>();
+
+				productionQueues = productionQueues.Where(pq => produces.Contains(pq.Info.Type));
+
+				var producibles = productionQueues.SelectMany(pq => pq.BuildableItems());
+				var locomotorNames = producibles
+					.Select(p => p.TraitInfoOrDefault<MobileInfo>())
+					.Where(mi => mi != null)
+					.Select(mi => mi.Locomotor)
+					.ToHashSet();
+
+				if (locomotorNames.Count != 0)
+					locomotors = world.WorldActor.TraitsImplementing<Locomotor>()
+						.Where(l => locomotorNames.Contains(l.Info.Name))
+						.ToArray();
+			}
+
+			return locomotors;
+		}
+
+		bool IsRallyPointValid(CPos producerLocation, CPos rallyPointLocation, Locomotor[] locomotors, BuildingInfo buildingInfo)
+		{
+			return
+				(pathFinder == null ||
+					locomotors.All(l => pathFinder.PathMightExistForLocomotorBlockedByImmovable(l, producerLocation, rallyPointLocation)))
+				&&
+				(buildingInfo == null ||
+					world.IsCellBuildable(rallyPointLocation, null, buildingInfo));
 		}
 
 		// Require at least one refinery, unless we can't build it.
-		public bool HasAdequateRefineryCount =>
+		public bool HasAdequateRefineryCount() =>
 			Info.RefineryTypes.Count == 0 ||
-			AIUtils.CountBuildingByCommonName(Info.RefineryTypes, player) >= MinimumRefineryCount ||
-			AIUtils.CountBuildingByCommonName(Info.PowerTypes, player) == 0 ||
-			AIUtils.CountBuildingByCommonName(Info.ConstructionYardTypes, player) == 0;
+			AIUtils.CountActorByCommonName(refineryBuildings) >= MinimumRefineryCount() ||
+			AIUtils.CountActorByCommonName(powerBuildings) == 0 ||
+			AIUtils.CountActorByCommonName(constructionYardBuildings) == 0;
 
-		int MinimumRefineryCount => AIUtils.CountBuildingByCommonName(Info.BarracksTypes, player) > 0 ? Info.InititalMinimumRefineryCount + Info.AdditionalMinimumRefineryCount : Info.InititalMinimumRefineryCount;
+		int MinimumRefineryCount() =>
+			AIUtils.CountActorByCommonName(barracksBuildings) > 0
+			? Info.InititalMinimumRefineryCount + Info.AdditionalMinimumRefineryCount
+			: Info.InititalMinimumRefineryCount;
 
 		List<MiniYamlNode> IGameSaveTraitData.IssueTraitData(Actor self)
 		{
@@ -270,23 +408,31 @@ namespace OpenRA.Mods.Common.Traits
 
 			return new List<MiniYamlNode>()
 			{
-				new MiniYamlNode("InitialBaseCenter", FieldSaver.FormatValue(initialBaseCenter)),
-				new MiniYamlNode("DefenseCenter", FieldSaver.FormatValue(DefenseCenter))
+				new("InitialBaseCenter", FieldSaver.FormatValue(initialBaseCenter)),
+				new("DefenseCenter", FieldSaver.FormatValue(DefenseCenter))
 			};
 		}
 
-		void IGameSaveTraitData.ResolveTraitData(Actor self, List<MiniYamlNode> data)
+		void IGameSaveTraitData.ResolveTraitData(Actor self, MiniYaml data)
 		{
 			if (self.World.IsReplay)
 				return;
 
-			var initialBaseCenterNode = data.FirstOrDefault(n => n.Key == "InitialBaseCenter");
+			var initialBaseCenterNode = data.NodeWithKeyOrDefault("InitialBaseCenter");
 			if (initialBaseCenterNode != null)
 				initialBaseCenter = FieldLoader.GetValue<CPos>("InitialBaseCenter", initialBaseCenterNode.Value.Value);
 
-			var defenseCenterNode = data.FirstOrDefault(n => n.Key == "DefenseCenter");
+			var defenseCenterNode = data.NodeWithKeyOrDefault("DefenseCenter");
 			if (defenseCenterNode != null)
 				DefenseCenter = FieldLoader.GetValue<CPos>("DefenseCenter", defenseCenterNode.Value.Value);
+		}
+
+		void INotifyActorDisposing.Disposing(Actor self)
+		{
+			refineryBuildings.Dispose();
+			powerBuildings.Dispose();
+			constructionYardBuildings.Dispose();
+			barracksBuildings.Dispose();
 		}
 	}
 }

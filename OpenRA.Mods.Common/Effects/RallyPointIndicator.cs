@@ -24,7 +24,7 @@ namespace OpenRA.Mods.Common.Effects
 		readonly Animation flag;
 		readonly Animation circles;
 
-		readonly List<WPos> targetLineNodes = new() { };
+		readonly List<WPos> targetLineNodes = new();
 		List<CPos> cachedLocations;
 
 		public RallyPointIndicator(Actor building, RallyPoint rp)
@@ -96,10 +96,10 @@ namespace OpenRA.Mods.Common.Effects
 			{
 				var palette = wr.Palette(rp.PaletteName);
 				if (circles != null)
-					renderables = renderables.Concat(circles.Render(targetLineNodes.Last(), palette));
+					renderables = renderables.Concat(circles.Render(targetLineNodes[^1], palette));
 
 				if (flag != null)
-					renderables = renderables.Concat(flag.Render(targetLineNodes.Last(), palette));
+					renderables = renderables.Concat(flag.Render(targetLineNodes[^1], palette));
 			}
 
 			return renderables;
@@ -129,7 +129,7 @@ namespace OpenRA.Mods.Common.Effects
 			{
 				var targetLine = new[] { prev, pos };
 				prev = pos;
-				yield return new TargetLineRenderable(targetLine, building.Owner.Color, rp.Info.LineWidth, 1);
+				yield return new TargetLineRenderable(targetLine, building.OwnerColor(), rp.Info.LineWidth, 1);
 			}
 		}
 	}

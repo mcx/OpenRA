@@ -48,7 +48,7 @@
 ^GainsExperience:
 	GainsExperience:
 		LevelUpNotification: LevelUp
-		LevelUpTextNotification: Unit promoted.
+		LevelUpTextNotification: notification-unit-promoted
 		Conditions:
 			250: rank-veteran
 			500: rank-veteran
@@ -145,11 +145,11 @@
 		AttackAnythingCondition: stance-attackanything
 	AutoTargetPriority@DEFAULT:
 		RequiresCondition: !stance-attackanything
-		ValidTargets: Infantry, Vehicle, Creep, Water, Defense
+		ValidTargets: Infantry, Vehicle, Creep, Water, Support
 		InvalidTargets: NoAutoTarget
 	AutoTargetPriority@ATTACKANYTHING:
 		RequiresCondition: stance-attackanything
-		ValidTargets: Infantry, Vehicle, Creep, Water, Structure, Defense
+		ValidTargets: Infantry, Vehicle, Creep, Water, Structure, Support
 		InvalidTargets: NoAutoTarget
 
 ^AutoTargetGroundAssaultMove:
@@ -172,11 +172,11 @@
 		AttackAnythingCondition: stance-attackanything
 	AutoTargetPriority@DEFAULT:
 		RequiresCondition: !stance-attackanything
-		ValidTargets: Infantry, Vehicle, Creep, Water, Air, Defense
+		ValidTargets: Infantry, Vehicle, Creep, Water, Air, Support
 		InvalidTargets: NoAutoTarget
 	AutoTargetPriority@ATTACKANYTHING:
 		RequiresCondition: stance-attackanything
-		ValidTargets: Infantry, Vehicle, Creep, Water, Air, Structure, Defense
+		ValidTargets: Infantry, Vehicle, Creep, Water, Air, Structure, Support
 		InvalidTargets: NoAutoTarget
 
 ^AutoTargetAllAssaultMove:
@@ -199,6 +199,8 @@
 		CloakDelay: 90
 		CloakSound: trans1.aud
 		UncloakSound: trans1.aud
+		CloakStyle: Palette
+		CloakedPalette: cloak
 		PauseOnCondition: cloak-force-disabled
 		RequiresCondition: cloak-crate-collected
 	ExternalCondition@CLOAK:
@@ -219,7 +221,7 @@
 			red: pip-red
 
 ^StoresResources:
-	StoresResources:
+	StoresPlayerResources:
 	WithResourceStoragePipsDecoration:
 		Position: BottomLeft
 		Margin: 4, 3
@@ -246,18 +248,18 @@
 	Passenger:
 		CargoType: Vehicle
 	ActorLostNotification:
-		TextNotification: Unit lost.
+		TextNotification: notification-unit-lost
 	HiddenUnderFog:
 	AttackMove:
 	WithDamageOverlay:
 	WithFacingSpriteBody:
-	Explodes:
+	FireWarheadsOnDeath:
 		Weapon: UnitExplodeSmall
 		EmptyWeapon: UnitExplodeSmall
 	Guard:
 	Guardable:
 	Tooltip:
-		GenericName: Vehicle
+		GenericName: meta-vehicle-generic-name
 	MustBeDestroyed:
 	Voiced:
 		VoiceSet: VehicleVoice
@@ -271,7 +273,7 @@
 		Locomotor: tracked
 		TurnSpeed: 20
 	Tooltip:
-		GenericName: Tank
+		GenericName: meta-tank-generic-name
 
 ^Helicopter:
 	Inherits@1: ^ExistsInWorld
@@ -305,15 +307,15 @@
 	HiddenUnderFog:
 		Type: GroundPosition
 	ActorLostNotification:
-		TextNotification: Unit lost.
-	Explodes:
+		TextNotification: notification-unit-lost
+	FireWarheadsOnDeath:
 		Weapon: HeliExplode
 		EmptyWeapon: HeliExplode
 	AttackMove:
 	Guard:
 	Guardable:
 	Tooltip:
-		GenericName: Helicopter
+		GenericName: meta-helicopter-generic-name
 	WithFacingSpriteBody:
 	WithShadow:
 		Offset: 43, 128, 0
@@ -390,7 +392,7 @@
 		Margin: 5, 6
 		RequiresCondition: hazmatsuits
 	ActorLostNotification:
-		TextNotification: Unit lost.
+		TextNotification: notification-unit-lost
 	SpawnActorOnDeath:
 		Probability: 5
 		Actor: vice
@@ -447,7 +449,7 @@
 	Inherits: ^Infantry
 	MustBeDestroyed:
 	Tooltip:
-		GenericName: Soldier
+		GenericName: meta-soldier-generic-name
 	Guard:
 	TakeCover:
 		SpeedModifier: 60
@@ -468,7 +470,7 @@
 	Valued:
 		Cost: 10
 	Tooltip:
-		Name: Civilian
+		Name: meta-civinfantry-name
 		GenericVisibility: None
 	Mobile:
 		Speed: 54
@@ -519,8 +521,6 @@
 		Prerequisites: ~disabled
 	Valued:
 		Cost: 1000
-	Tooltip:
-		Name: Dinosaur
 	RevealsShroud:
 		Range: 6c0
 	Mobile:
@@ -587,7 +587,7 @@
 	Valued:
 		Cost: 700
 	Tooltip:
-		Name: Visceroid
+		Name: meta-viceroid-name
 	Armament:
 		Weapon: Chemspray
 		LocalOffset: 384,0,0
@@ -633,7 +633,7 @@
 		Type: GroundPosition
 		AlwaysVisibleRelationships: None
 	ActorLostNotification:
-		TextNotification: Unit lost.
+		TextNotification: notification-unit-lost
 	AttackMove:
 	WithShadow:
 		Offset: 43, 128, 0
@@ -657,16 +657,16 @@
 		TargetTypes: Ground, Water
 	HiddenUnderFog:
 	ActorLostNotification:
-		TextNotification: Unit lost.
+		TextNotification: notification-unit-lost
 	AttackMove:
 	WithDamageOverlay:
-	Explodes:
+	FireWarheadsOnDeath:
 		Weapon: UnitExplodeShip
 		EmptyWeapon: UnitExplodeShip
 	Guard:
 	Guardable:
 	Tooltip:
-		GenericName: Ship
+		GenericName: meta-ship-generic-name
 	Voiced:
 		VoiceSet: VehicleVoice
 	HitShape:
@@ -697,22 +697,22 @@
 		DamagedSounds: xplobig4.aud
 		DestroyedSounds: crumble.aud, xplobig4.aud
 	WithSpriteBody:
-	Explodes:
+	FireWarheadsOnDeath:
 		Type: Footprint
 		Weapon: BuildingExplode
 		EmptyWeapon: BuildingExplode
 	CaptureNotification:
 		Notification: BuildingCaptured
-		TextNotification: Building captured.
+		TextNotification: notification-building-captured
 		NewOwnerVoice: false
 	ActorLostNotification:
 		Notification: BuildingLost
-		TextNotification: Structure lost.
+		TextNotification: notification-structure-lost
 	ShakeOnDeath:
 	Guardable:
 		Range: 3c0
 	Tooltip:
-		GenericName: Structure
+		GenericName: meta-building-generic-name
 	FrozenUnderFog:
 	Demolishable:
 	MapEditorData:
@@ -767,7 +767,7 @@
 ^CivBuilding:
 	Inherits: ^Building
 	Tooltip:
-		GenericName: Civilian Building
+		GenericName: meta-civbuilding-generic-name
 		GenericStancePrefix: false
 		ShowOwnerRow: false
 	FrozenUnderFog:
@@ -783,7 +783,7 @@
 		Footprint: x
 	WithSpriteBody:
 	Tooltip:
-		GenericName: Civilian Building (Destroyed)
+		GenericName: meta-civbuildinghusk-generic-name
 		GenericStancePrefix: false
 		ShowOwnerRow: false
 	FrozenUnderFog:
@@ -800,7 +800,7 @@
 		Types: building
 	CaptureNotification:
 		Notification: CivilianBuildingCaptured
-		TextNotification: Civilian building captured.
+		TextNotification: notification-civ-building-captured
 	RepairableBuilding:
 		RepairPercent: 40
 		RepairStep: 1400
@@ -826,8 +826,8 @@
 	-Selectable:
 	Interactable:
 	Tooltip:
-		GenericName: Field
-	-Explodes:
+		GenericName: meta-civfield-generic-name
+	-FireWarheadsOnDeath:
 	-ShakeOnDeath:
 	-SoundOnDamageTransition:
 	-Demolishable:
@@ -843,12 +843,12 @@
 		Condition: winter
 		TileSets: SNOW, WINTER
 	Tooltip@WINTER:
-		Name: Igloo
+		Name: meta-civhaystackorigloo.winter-name
 		RequiresCondition: winter
 		GenericVisibility: None
 		ShowOwnerRow: false
 	Tooltip@SUMMER:
-		Name: Haystacks
+		Name: meta-civhaystackorigloo.summer-name
 		RequiresCondition: !winter
 		GenericVisibility: None
 		ShowOwnerRow: false
@@ -861,7 +861,6 @@
 		Dimensions: 1,1
 		Footprint: =
 	Tooltip:
-		Name: Field (Destroyed)
 		GenericVisibility: None
 		ShowOwnerRow: false
 	RenderSprites:
@@ -880,12 +879,12 @@
 		Condition: winter
 		TileSets: SNOW, WINTER
 	Tooltip@WINTER:
-		Name: Igloo (Destroyed)
+		Name: meta-civhaystackorigloohusk.winter-name
 		RequiresCondition: winter
 		GenericVisibility: None
 		ShowOwnerRow: false
 	Tooltip@SUMMER:
-		Name: Haystacks (Destroyed)
+		Name: meta-civhaystackorigloohusk.summer-name
 		RequiresCondition: !winter
 		GenericVisibility: None
 		ShowOwnerRow: false
@@ -940,7 +939,7 @@
 	Inherits@1: ^SpriteActor
 	Interactable:
 	Tooltip:
-		Name: Tree
+		Name: meta-tree-name
 		ShowOwnerRow: false
 	RenderSprites:
 		Palette: staticterrain
@@ -994,7 +993,7 @@
 		Dimensions: 2,2
 	WithSpriteBody:
 	Tooltip:
-		Name: Tree (Burnt)
+		Name: meta-treehusk-name
 		ShowOwnerRow: false
 	HiddenUnderShroud:
 	MapEditorData:
@@ -1006,7 +1005,7 @@
 	Inherits@1: ^SpriteActor
 	Interactable:
 	Tooltip:
-		Name: Blossom Tree
+		Name: meta-tibtree-name
 		ShowOwnerRow: false
 	RenderSprites:
 		Palette: staticterrain
@@ -1030,7 +1029,7 @@
 	Inherits@1: ^SpriteActor
 	Interactable:
 	Tooltip:
-		Name: Rock
+		Name: meta-rock-name
 		ShowOwnerRow: false
 	RenderSprites:
 		Palette: staticterrain
@@ -1069,21 +1068,21 @@
 	Inherits: ^CommonHuskDefaults
 	Husk:
 		AllowedTerrain: Clear, Rough, Road, Tiberium, BlueTiberium, Beach
+		Locomotor: tracked
 	Targetable:
 		RequiresForceFire: true
 		TargetTypes: Ground, Husk
 	CaptureManager:
 	Capturable:
 		Types: husk
-		ValidRelationships: Enemy, Neutral, Ally
 	TransformOnCapture:
 		ForceHealthPercentage: 25
 	Tooltip:
-		GenericName: Destroyed Vehicle
+		GenericName: meta-husk-generic-name
 	WithColoredOverlay@IDISABLE:
 		Color: 000000B4
 	ScriptTriggers:
-	Explodes:
+	FireWarheadsOnDeath:
 		Weapon: UnitExplodeSmall
 		EmptyWeapon: UnitExplodeSmall
 	WithIdleOverlay@Burns:
@@ -1097,6 +1096,8 @@
 
 ^LightHusk:
 	Inherits: ^Husk
+	Husk:
+		Locomotor: wheeled
 	Health:
 		HP: 4000
 
@@ -1113,14 +1114,14 @@
 		Moves: False
 		Explosion: HeliCrash
 	Tooltip:
-		GenericName: Destroyed Helicopter
+		GenericName: meta-helicopterhusk-generic-name
 	-MapEditorData:
 
 ^Bridge:
 	Inherits@shape: ^1x1Shape
 	AlwaysVisible:
 	Tooltip:
-		Name: Bridge
+		Name: meta-bridge-name
 		ShowOwnerRow: false
 	Targetable:
 		RequiresForceFire: true
@@ -1146,8 +1147,8 @@
 	Interactable:
 	HiddenUnderFog:
 	Tooltip:
-		Name: Crate
-		GenericName: Crate
+		Name: meta-crate.name
+		GenericName: meta-crate.generic-name
 		ShowOwnerRow: false
 	Crate:
 		TerrainTypes: Clear, Rough, Road, Tiberium, BlueTiberium, Beach
@@ -1159,7 +1160,7 @@
 	MapEditorData:
 		Categories: System
 
-^Defense:
+^Support:
 	Inherits: ^BaseBuilding
 	Inherits@selection: ^SelectableCombatBuilding
 	RenderRangeCircle:
@@ -1168,9 +1169,9 @@
 	MustBeDestroyed:
 		RequiredForShortGame: false
 	Targetable:
-		TargetTypes: Ground, C4, Structure, Defense
+		TargetTypes: Ground, C4, Structure, Support
 	MapEditorData:
-		Categories: Defense
+		Categories: Support
 	-CommandBarBlacklist:
 	-AcceptsDeliveredCash:
 

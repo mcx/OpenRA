@@ -10,11 +10,12 @@
 #endregion
 
 using OpenRA.Mods.Common.Traits;
+using OpenRA.Primitives;
 using OpenRA.Traits;
 
 namespace OpenRA.Mods.Common.Activities
 {
-	sealed class InstantRepair : Enter
+	public sealed class InstantRepair : Enter
 	{
 		readonly InstantlyRepairsInfo info;
 
@@ -22,8 +23,8 @@ namespace OpenRA.Mods.Common.Activities
 		IHealth enterHealth;
 		InstantlyRepairable enterInstantlyRepariable;
 
-		public InstantRepair(Actor self, in Target target, InstantlyRepairsInfo info)
-			: base(self, target, info.TargetLineColor)
+		public InstantRepair(Actor self, in Target target, InstantlyRepairsInfo info, Color? targetLineColor)
+			: base(self, target, targetLineColor)
 		{
 			this.info = info;
 		}
@@ -37,7 +38,9 @@ namespace OpenRA.Mods.Common.Activities
 			// Make sure we can still repair the target before entering
 			// (but not before, because this may stop the actor in the middle of nowhere)
 			var stance = self.Owner.RelationshipWith(enterActor.Owner);
-			if (enterHealth == null || enterHealth.DamageState == DamageState.Undamaged || enterInstantlyRepariable == null || enterInstantlyRepariable.IsTraitDisabled || !info.ValidRelationships.HasRelationship(stance))
+			if (enterHealth == null || enterHealth.DamageState == DamageState.Undamaged ||
+				enterInstantlyRepariable == null || enterInstantlyRepariable.IsTraitDisabled ||
+				!info.ValidRelationships.HasRelationship(stance))
 			{
 				Cancel(self, true);
 				return false;

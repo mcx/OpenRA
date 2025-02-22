@@ -27,8 +27,7 @@ namespace OpenRA.FileFormats
 
 		public ReplayMetadata(GameInformation info)
 		{
-			if (info == null)
-				throw new ArgumentNullException(nameof(info));
+			ArgumentNullException.ThrowIfNull(info);
 
 			GameInfo = info;
 		}
@@ -47,8 +46,8 @@ namespace OpenRA.FileFormats
 				throw new NotSupportedException($"Metadata version {version} is not supported");
 
 			// Read game info (max 100K limit as a safeguard against corrupted files)
-			var data = fs.ReadString(Encoding.UTF8, 1024 * 100);
-			GameInfo = GameInformation.Deserialize(data);
+			var data = fs.ReadLengthPrefixedString(Encoding.UTF8, 1024 * 100);
+			GameInfo = GameInformation.Deserialize(data, path);
 		}
 
 		public void Write(BinaryWriter writer)
@@ -62,7 +61,7 @@ namespace OpenRA.FileFormats
 			{
 				// Write lobby info data
 				writer.Flush();
-				dataLength += writer.BaseStream.WriteString(Encoding.UTF8, GameInfo.Serialize());
+				dataLength += writer.BaseStream.WriteLengthPrefixedString(Encoding.UTF8, GameInfo.Serialize());
 			}
 
 			// Write total length & end marker
