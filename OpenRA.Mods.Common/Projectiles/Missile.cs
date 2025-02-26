@@ -77,7 +77,10 @@ namespace OpenRA.Mods.Common.Projectiles
 		[Desc("The maximum/constant/incremental inaccuracy used in conjunction with the InaccuracyType property.")]
 		public readonly WDist Inaccuracy = WDist.Zero;
 
-		[Desc("Controls the way inaccuracy is calculated. Possible values are 'Maximum' - scale from 0 to max with range, 'PerCellIncrement' - scale from 0 with range and 'Absolute' - use set value regardless of range.")]
+		[Desc("Controls the way inaccuracy is calculated. Possible values are " +
+			"'Maximum' - scale from 0 to max with range, " +
+			"'PerCellIncrement' - scale from 0 with range, " +
+			"'Absolute' - use set value regardless of range.")]
 		public readonly InaccuracyType InaccuracyType = InaccuracyType.Absolute;
 
 		[Desc("Inaccuracy override when successfully locked onto target. Defaults to Inaccuracy if negative.")]
@@ -259,6 +262,9 @@ namespace OpenRA.Mods.Common.Projectiles
 			minLaunchAngle = info.MinimumLaunchAngle;
 			maxLaunchAngle = info.MaximumLaunchAngle;
 
+			// Make sure the projectile on being spawned is approximately looking at the correct direction.
+			renderFacing = args.Facing;
+
 			var world = args.SourceActor.World;
 
 			if (world.SharedRandom.Next(100) <= info.LockOnProbability)
@@ -267,7 +273,7 @@ namespace OpenRA.Mods.Common.Projectiles
 			var inaccuracy = lockOn && info.LockOnInaccuracy.Length > -1 ? info.LockOnInaccuracy.Length : info.Inaccuracy.Length;
 			if (inaccuracy > 0)
 			{
-				var maxInaccuracyOffset = Util.GetProjectileInaccuracy(info.Inaccuracy.Length, info.InaccuracyType, args);
+				var maxInaccuracyOffset = Util.GetProjectileInaccuracy(inaccuracy, info.InaccuracyType, args);
 				offset = WVec.FromPDF(world.SharedRandom, 2) * maxInaccuracyOffset / 1024;
 			}
 
@@ -285,9 +291,14 @@ namespace OpenRA.Mods.Common.Projectiles
 
 			if (info.ContrailLength > 0)
 			{
-				var startcolor = info.ContrailStartColorUsePlayerColor ? Color.FromArgb(info.ContrailStartColorAlpha, args.SourceActor.Owner.Color) : Color.FromArgb(info.ContrailStartColorAlpha, info.ContrailStartColor);
-				var endcolor = info.ContrailEndColorUsePlayerColor ? Color.FromArgb(info.ContrailEndColorAlpha, args.SourceActor.Owner.Color) : Color.FromArgb(info.ContrailEndColorAlpha, info.ContrailEndColor ?? startcolor);
-				contrail = new ContrailRenderable(world, startcolor, endcolor, info.ContrailStartWidth, info.ContrailEndWidth ?? info.ContrailStartWidth, info.ContrailLength, info.ContrailDelay, info.ContrailZOffset);
+				var startcolor = Color.FromArgb(info.ContrailStartColorAlpha, info.ContrailStartColor);
+				var endcolor = Color.FromArgb(info.ContrailEndColorAlpha, info.ContrailEndColor ?? startcolor);
+				contrail = new ContrailRenderable(world, args.SourceActor,
+					startcolor, info.ContrailStartColorUsePlayerColor,
+					endcolor, info.ContrailEndColor == null ? info.ContrailStartColorUsePlayerColor : info.ContrailEndColorUsePlayerColor,
+					info.ContrailStartWidth,
+					info.ContrailEndWidth ?? info.ContrailStartWidth,
+					info.ContrailLength, info.ContrailDelay, info.ContrailZOffset);
 			}
 
 			trailPalette = info.TrailPalette;
@@ -496,8 +507,8 @@ namespace OpenRA.Mods.Common.Projectiles
 			lastHt = 0; // Height just before the last height change
 
 			// NOTE: Might be desired to unhardcode the lookahead step size
-			var stepSize = 32;
-			var step = new WVec(0, -stepSize, 0)
+			const int StepSize = 32;
+			var step = new WVec(0, -StepSize, 0)
 				.Rotate(new WRot(WAngle.Zero, WAngle.Zero, WAngle.FromFacing(hFacing))); // Step vector of length 128
 
 			// Probe terrain ahead of the missile
@@ -505,7 +516,7 @@ namespace OpenRA.Mods.Common.Projectiles
 			var maxLookaheadDistance = loopRadius * 4;
 			var posProbe = pos;
 			var curDist = 0;
-			var tickLimit = System.Math.Min(maxLookaheadDistance, distCheck) / stepSize;
+			var tickLimit = System.Math.Min(maxLookaheadDistance, distCheck) / StepSize;
 			var prevHt = 0;
 
 			// TODO: Make sure cell on map!!!
@@ -517,7 +528,7 @@ namespace OpenRA.Mods.Common.Projectiles
 
 				var ht = world.Map.Height[world.Map.CellContaining(posProbe)] * 512;
 
-				curDist += stepSize;
+				curDist += StepSize;
 				if (ht > predClfHgt)
 				{
 					predClfHgt = ht;
@@ -849,7 +860,7 @@ namespace OpenRA.Mods.Common.Projectiles
 			// Check if target position should be updated (actor visible & locked on)
 			var newTarPos = targetPosition;
 			if (args.GuidedTarget.IsValidFor(args.SourceActor) && lockOn)
-				newTarPos = (args.Weapon.TargetActorCenter ? args.GuidedTarget.CenterPosition : args.GuidedTarget.Positions.PositionClosestTo(args.Source))
+				newTarPos = (args.Weapon.TargetActorCenter ? args.GuidedTarget.CenterPosition : args.GuidedTarget.Positions.ClosestToIgnoringPath(args.Source))
 					+ new WVec(WDist.Zero, WDist.Zero, info.AirburstAltitude);
 
 			// Compute target's predicted velocity vector (assuming uniform circular motion)

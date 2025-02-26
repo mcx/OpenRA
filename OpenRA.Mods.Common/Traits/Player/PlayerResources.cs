@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using OpenRA.Traits;
 
@@ -44,6 +45,7 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Speech notification to play when the player does not have any funds.")]
 		public readonly string InsufficientFundsNotification = null;
 
+		[FluentReference(optional: true)]
 		[Desc("Text notification to display when the player does not have any funds.")]
 		public readonly string InsufficientFundsTextNotification = null;
 
@@ -61,11 +63,12 @@ namespace OpenRA.Mods.Common.Traits
 
 		IEnumerable<LobbyOption> ILobbyOptions.LobbyOptions(MapPreview map)
 		{
-			var startingCash = SelectableCash.ToDictionary(c => c.ToString(), c => "$" + c.ToString());
+			var startingCash = SelectableCash.ToDictionary(c => c.ToStringInvariant(), c => "$" + c.ToString(NumberFormatInfo.CurrentInfo));
 
 			if (startingCash.Count > 0)
-				yield return new LobbyOption(map, "startingcash", DefaultCashDropdownLabel, DefaultCashDropdownDescription, DefaultCashDropdownVisible, DefaultCashDropdownDisplayOrder,
-					startingCash, DefaultCash.ToString(), DefaultCashDropdownLocked);
+				yield return new LobbyOption(map, "startingcash",
+					DefaultCashDropdownLabel, DefaultCashDropdownDescription, DefaultCashDropdownVisible, DefaultCashDropdownDisplayOrder,
+					startingCash, DefaultCash.ToStringInvariant(), DefaultCashDropdownLocked);
 		}
 
 		public override object Create(ActorInitializer init) { return new PlayerResources(init.Self, this); }
@@ -82,7 +85,7 @@ namespace OpenRA.Mods.Common.Traits
 			owner = self.Owner;
 
 			var startingCash = self.World.LobbyInfo.GlobalSettings
-				.OptionOrDefault("startingcash", info.DefaultCash.ToString());
+				.OptionOrDefault("startingcash", info.DefaultCash.ToStringInvariant());
 
 			if (!int.TryParse(startingCash, out Cash))
 				Cash = info.DefaultCash;
@@ -111,7 +114,7 @@ namespace OpenRA.Mods.Common.Traits
 			else
 			{
 				// Don't put the player into negative funds
-				amount = Math.Max(-(Cash + Resources), amount);
+				amount = Math.Max(-GetCashAndResources(), amount);
 
 				TakeCash(-amount);
 			}
@@ -180,13 +183,13 @@ namespace OpenRA.Mods.Common.Traits
 
 		public bool TakeCash(int num, bool notifyLowFunds = false)
 		{
-			if (Cash + Resources < num)
+			if (GetCashAndResources() < num)
 			{
 				if (notifyLowFunds && Game.RunTime > lastNotificationTime + Info.InsufficientFundsNotificationInterval)
 				{
 					lastNotificationTime = Game.RunTime;
 					Game.Sound.PlayNotification(owner.World.Map.Rules, owner, "Speech", Info.InsufficientFundsNotification, owner.Faction.InternalName);
-					TextNotificationsManager.AddTransientLine(Info.InsufficientFundsTextNotification, owner);
+					TextNotificationsManager.AddTransientLine(owner, Info.InsufficientFundsTextNotification);
 				}
 
 				return false;
@@ -204,17 +207,22 @@ namespace OpenRA.Mods.Common.Traits
 			return true;
 		}
 
-		public void AddStorage(int capacity)
+		public void AddStorageCapacity(int capacity)
 		{
 			ResourceCapacity += capacity;
 		}
 
-		public void RemoveStorage(int capacity)
+		public void RemoveStorageCapacity(int capacity)
 		{
 			ResourceCapacity -= capacity;
 
 			if (Resources > ResourceCapacity)
 				Resources = ResourceCapacity;
+		}
+
+		public int GetCashAndResources()
+		{
+			return Cash + Resources;
 		}
 	}
 }

@@ -16,6 +16,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using ICSharpCode.SharpZipLib.Checksum;
+using ICSharpCode.SharpZipLib.Zip.Compression;
 using ICSharpCode.SharpZipLib.Zip.Compression.Streams;
 using OpenRA.Graphics;
 using OpenRA.Primitives;
@@ -45,12 +46,13 @@ namespace OpenRA.FileFormats
 			var data = new List<byte>();
 			Type = SpriteFrameType.Rgba32;
 
+			byte bitDepth = 8;
 			while (true)
 			{
 				var length = IPAddress.NetworkToHostOrder(s.ReadInt32());
-				var type = Encoding.UTF8.GetString(s.ReadBytes(4));
+				var type = s.ReadASCII(4);
 				var content = s.ReadBytes(length);
-				/*var crc = */s.ReadInt32();
+				s.ReadInt32(); // crc
 
 				if (!headerParsed && type != "IHDR")
 					throw new InvalidDataException("Invalid PNG file - header does not appear first.");
@@ -66,7 +68,7 @@ namespace OpenRA.FileFormats
 							Width = IPAddress.NetworkToHostOrder(ms.ReadInt32());
 							Height = IPAddress.NetworkToHostOrder(ms.ReadInt32());
 
-							var bitDepth = ms.ReadUInt8();
+							bitDepth = ms.ReadUInt8();
 							var colorType = (PngColorType)ms.ReadUInt8();
 							if (IsPaletted(bitDepth, colorType))
 								Type = SpriteFrameType.Indexed8;
@@ -76,7 +78,7 @@ namespace OpenRA.FileFormats
 							Data = new byte[Width * Height * PixelStride];
 
 							var compression = ms.ReadUInt8();
-							/*var filter = */ms.ReadUInt8();
+							ms.ReadUInt8(); // filter
 							var interlace = ms.ReadUInt8();
 
 							if (compression != 0)
@@ -92,8 +94,8 @@ namespace OpenRA.FileFormats
 
 						case "PLTE":
 						{
-							Palette = new Color[256];
-							for (var i = 0; i < length / 3; i++)
+							Palette = new Color[length / 3];
+							for (var i = 0; i < Palette.Length; i++)
 							{
 								var r = ms.ReadUInt8(); var g = ms.ReadUInt8(); var b = ms.ReadUInt8();
 								Palette[i] = Color.FromArgb(r, g, b);
@@ -136,13 +138,33 @@ namespace OpenRA.FileFormats
 								{
 									var pxStride = PixelStride;
 									var rowStride = Width * pxStride;
+									var pixelsPerByte = 8 / bitDepth;
+									var sourceRowStride = Exts.IntegerDivisionRoundingAwayFromZero(rowStride, pixelsPerByte);
 
 									Span<byte> prevLine = new byte[rowStride];
 									for (var y = 0; y < Height; y++)
 									{
 										var filter = (PngFilter)ds.ReadUInt8();
-										ds.ReadBytes(Data, y * rowStride, rowStride);
+										ds.ReadBytes(Data, y * rowStride, sourceRowStride);
 										var line = Data.AsSpan(y * rowStride, rowStride);
+
+										// If the source has a bit depth of 1, 2 or 4 it packs multiple pixels per byte.
+										// Unpack to bit depth of 8, yielding 1 pixel per byte.
+										// This makes life easier for consumers of palleted data.
+										if (bitDepth < 8)
+										{
+											var mask = 0xFF >> (8 - bitDepth);
+											for (var i = sourceRowStride - 1; i >= 0; i--)
+											{
+												var packed = line[i];
+												for (var j = 0; j < pixelsPerByte; j++)
+												{
+													var dest = i * pixelsPerByte + j;
+													if (dest < line.Length) // Guard against last byte being only partially packed
+														line[dest] = (byte)(packed >> (8 - (j + 1) * bitDepth) & mask);
+												}
+											}
+										}
 
 										switch (filter)
 										{
@@ -269,7 +291,7 @@ namespace OpenRA.FileFormats
 
 		static bool IsPaletted(byte bitDepth, PngColorType colorType)
 		{
-			if (bitDepth == 8 && colorType == (PngColorType.Indexed | PngColorType.Color))
+			if (bitDepth <= 8 && colorType == (PngColorType.Indexed | PngColorType.Color))
 				return true;
 
 			if (bitDepth == 8 && colorType == (PngColorType.Color | PngColorType.Alpha))
@@ -287,10 +309,10 @@ namespace OpenRA.FileFormats
 
 			var typeBytes = Encoding.ASCII.GetBytes(type);
 			output.Write(IPAddress.HostToNetworkOrder((int)input.Length));
-			output.WriteArray(typeBytes);
+			output.Write(typeBytes);
 
 			var data = input.ReadAllBytes();
-			output.WriteArray(data);
+			output.Write(data);
 
 			var crc32 = new Crc32();
 			crc32.Update(typeBytes);
@@ -302,7 +324,7 @@ namespace OpenRA.FileFormats
 		{
 			using (var output = new MemoryStream())
 			{
-				output.WriteArray(Signature);
+				output.Write(Signature);
 				using (var header = new MemoryStream())
 				{
 					header.Write(IPAddress.HostToNetworkOrder(Width));
@@ -350,13 +372,14 @@ namespace OpenRA.FileFormats
 
 				using (var data = new MemoryStream())
 				{
-					using (var compressed = new DeflaterOutputStream(data))
+					using (var compressed = new DeflaterOutputStream(data, new Deflater(Deflater.BEST_COMPRESSION)))
 					{
 						var rowStride = Width * PixelStride;
 						for (var y = 0; y < Height; y++)
 						{
-							// Write uncompressed scanlines for simplicity
-							compressed.WriteByte(0);
+							// Assuming no filtering for simplicity
+							const byte FilterType = 0;
+							compressed.WriteByte(FilterType);
 							compressed.Write(Data, y * rowStride, rowStride);
 						}
 
@@ -371,7 +394,7 @@ namespace OpenRA.FileFormats
 				{
 					using (var text = new MemoryStream())
 					{
-						text.WriteArray(Encoding.ASCII.GetBytes(kv.Key + (char)0 + kv.Value));
+						text.Write(Encoding.ASCII.GetBytes(kv.Key + (char)0 + kv.Value));
 						WritePngChunk(output, "tEXt", text);
 					}
 				}

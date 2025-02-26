@@ -124,7 +124,7 @@ namespace OpenRA.Mods.Common.Widgets
 
 			var scale = 200 / Math.Max(5000, (float)Math.Ceiling(maxValue / 1000) * 1000);
 
-			var widthMaxValue = labelFont.Measure(string.Format(GetYAxisValueFormat(), height / scale)).X;
+			var widthMaxValue = labelFont.Measure(GetYAxisValueFormat().FormatCurrent(height / scale)).X;
 			var widthLongestName = labelFont.Measure(longestName).X;
 
 			// y axis label
@@ -145,6 +145,10 @@ namespace OpenRA.Mods.Common.Widgets
 			var origin = new float2(rect.Left, rect.Bottom);
 
 			var keyOffset = 0;
+
+			// added sorting so that names appear in order of highest value to lowest value
+			series = series.OrderByDescending(s => s.Points.LastOrDefault()).ToList();
+
 			foreach (var s in series)
 			{
 				var key = s.Key;
@@ -164,7 +168,7 @@ namespace OpenRA.Mods.Common.Widgets
 						}), 1, color);
 
 					if (lastPoint != 0f)
-						labelFont.DrawTextWithShadow(string.Format(GetValueFormat(), lastPoint), graphOrigin + new float2(lastX * xStep, -lastPoint * scale - 2),
+						labelFont.DrawTextWithShadow(GetValueFormat().FormatCurrent(lastPoint), graphOrigin + new float2(lastX * xStep, -lastPoint * scale - 2),
 							color, BackgroundColorDark, BackgroundColorLight, 1);
 				}
 
@@ -185,7 +189,7 @@ namespace OpenRA.Mods.Common.Widgets
 				if (n % XAxisTicksPerLabel != 0)
 					continue;
 
-				var xAxisText = string.Format(GetXAxisValueFormat(), n / XAxisTicksPerLabel);
+				var xAxisText = GetXAxisValueFormat().FormatCurrent(n / XAxisTicksPerLabel);
 				var xAxisTickTextWidth = labelFont.Measure(xAxisText).X;
 				var xLocation = x - xAxisTickTextWidth / 2;
 				labelFont.DrawTextWithShadow(xAxisText,
@@ -202,7 +206,7 @@ namespace OpenRA.Mods.Common.Widgets
 			{
 				var yValue = y / scale;
 				cr.DrawLine(graphOrigin + new float2(0, -y), graphOrigin + new float2(5, -y), 1, Color.White);
-				var text = string.Format(GetYAxisValueFormat(), yValue);
+				var text = GetYAxisValueFormat().FormatCurrent(yValue);
 
 				var textWidth = labelFont.Measure(text);
 
@@ -220,7 +224,7 @@ namespace OpenRA.Mods.Common.Widgets
 			cr.DrawLine(graphOrigin, graphOrigin + new float2(0, -height), 1, Color.White);
 		}
 
-		public override Widget Clone()
+		public override LineGraphWidget Clone()
 		{
 			return new LineGraphWidget(this);
 		}

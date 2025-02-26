@@ -24,8 +24,8 @@ namespace OpenRA.Mods.Common.Widgets
 		readonly CachedTransform<bool, Color> textColor;
 
 		[ObjectCreator.UseCtor]
-		public LabelForInputWidget()
-			: base()
+		public LabelForInputWidget(ModData modData)
+			: base(modData)
 		{
 			inputWidget = Exts.Lazy(() => Parent.Get<InputWidget>(For));
 			textColor = new CachedTransform<bool, Color>(disabled => disabled ? TextDisabledColor : TextColor);
@@ -43,6 +43,6 @@ namespace OpenRA.Mods.Common.Widgets
 			font.DrawText(text, position, textColor.Update(inputWidget.Value.IsDisabled()));
 		}
 
-		public override Widget Clone() { return new LabelForInputWidget(this); }
+		public override LabelForInputWidget Clone() { return new LabelForInputWidget(this); }
 	}
 }

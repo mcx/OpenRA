@@ -414,7 +414,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 				{
 					var src = accessibleCells.First();
 					using (var search = GetLocalPathSearch(
-						null, new[] { src }, src, customCost, null, BlockedByActor.None, false, grid, 100))
+						null, new[] { src }, src, customCost, null, BlockedByActor.None, false, grid, 100, null, false, null))
 					{
 						var localCellsInRegion = search.ExpandAll();
 						var abstractCell = AbstractCellForLocalCells(localCellsInRegion, gridLayer);
@@ -632,17 +632,20 @@ namespace OpenRA.Mods.Common.Pathfinder
 		}
 
 		/// <summary>
+		/// <para>
 		/// <see cref="BlockedByActor.Immovable"/> defines immovability based on the mobile trait. The blocking rules
 		/// in <see cref="Locomotor.CanMoveFreelyInto(Actor, CPos, SubCell, BlockedByActor, Actor, bool)"/> allow units
 		/// to pass these immovable actors if they are temporary blockers (e.g. gates) or crushable by the locomotor.
 		/// Since our abstract graph must work for any actor, we have to be conservative and can only consider a subset
 		/// of the immovable actors in the graph - ones we know cannot be passed by some actors due to these rules.
 		/// Both this and <see cref="ActorCellIsBlocking"/> must be true for a cell to be blocked.
-		///
-		/// This method is dependant on the logic in
+		/// </para>
+		/// <para>
+		/// This method is dependent on the logic in
 		/// <see cref="Locomotor.CanMoveFreelyInto(Actor, CPos, SubCell, BlockedByActor, Actor, bool)"/> and
 		/// <see cref="Locomotor.UpdateCellBlocking"/>. This method must be kept in sync with changes in the locomotor
 		/// rules.
+		/// </para>
 		/// </summary>
 		bool ActorIsBlocking(Actor actor)
 		{
@@ -654,8 +657,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 			if (isTemporaryBlocker)
 				return false;
 
-			var crushables = actor.TraitsImplementing<ICrushable>();
-			foreach (var crushable in crushables)
+			foreach (var crushable in actor.Crushables)
 				if (world.NoPlayersMask != crushable.CrushableBy(actor, locomotor.Info.Crushes))
 					return false;
 
@@ -723,7 +725,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// </summary>
 		public List<CPos> FindPath(Actor self, IReadOnlyCollection<CPos> sources, CPos target,
 			BlockedByActor check, int heuristicWeightPercentage, Func<CPos, int> customCost,
-			Actor ignoreActor, bool laneBias, PathFinderOverlay pathFinderOverlay)
+			Actor ignoreActor, bool inReverse, bool laneBias, PathFinderOverlay pathFinderOverlay)
 		{
 			if (costEstimator == null)
 				return PathFinder.NoPath;
@@ -739,10 +741,14 @@ namespace OpenRA.Mods.Common.Pathfinder
 			if (targetAbstractCell == null)
 				return PathFinder.NoPath;
 
+			RebuildDomains();
+			var targetDomain = abstractDomains[targetAbstractCell.Value];
+
 			// Unlike the target cell, the source cell is allowed to be an unreachable location.
 			// Instead, what matters is whether any cell adjacent to the source cell can be reached.
-			var sourcesWithReachableNodes = new List<(CPos Source, CPos AdjacentSource)>(sources.Count);
+			var sourcesWithPathableNodes = new HashSet<CPos>(sources.Count);
 			var sourceEdges = new List<GraphEdge>(sources.Count);
+			List<CPos> unpathableNodes = null;
 			foreach (var source in sources)
 			{
 				if (!world.Map.Contains(source))
@@ -752,7 +758,12 @@ namespace OpenRA.Mods.Common.Pathfinder
 				var sourceAbstractCell = AbstractCellForLocalCell(source);
 				if (sourceAbstractCell != null)
 				{
-					sourcesWithReachableNodes.Add((source, source));
+					// If the source and target belong to different domains, there is no path.
+					var sourceDomain = abstractDomains[sourceAbstractCell.Value];
+					if (sourceDomain != targetDomain)
+						continue;
+
+					sourcesWithPathableNodes.Add(source);
 					var sourceEdge = EdgeFromLocalToAbstract(source, sourceAbstractCell.Value);
 					if (sourceEdge != null)
 						sourceEdges.Add(sourceEdge.Value);
@@ -770,14 +781,23 @@ namespace OpenRA.Mods.Common.Pathfinder
 					if (adjacentSourceAbstractCell == null)
 						continue;
 
-					sourcesWithReachableNodes.Add((source, adjacentSource));
+					// If the source and target belong to different domains, there is no path.
+					var adjacentSourceDomain = abstractDomains[adjacentSourceAbstractCell.Value];
+					if (adjacentSourceDomain != targetDomain)
+					{
+						unpathableNodes ??= new List<CPos>();
+						unpathableNodes.Add(adjacentSource);
+						continue;
+					}
+
+					sourcesWithPathableNodes.Add(source);
 					var sourceEdge = EdgeFromLocalToAbstract(adjacentSource, adjacentSourceAbstractCell.Value);
 					if (sourceEdge != null)
 						sourceEdges.Add(sourceEdge.Value);
 				}
 			}
 
-			if (sourcesWithReachableNodes.Count == 0)
+			if (sourcesWithPathableNodes.Count == 0)
 				return PathFinder.NoPath;
 
 			var targetEdge = EdgeFromLocalToAbstract(target, targetAbstractCell.Value);
@@ -790,42 +810,11 @@ namespace OpenRA.Mods.Common.Pathfinder
 			using (var reverseAbstractSearch = PathSearch.ToTargetCellOverGraph(
 				fullGraph.GetConnections, locomotor, target, target, estimatedSearchSize, pathFinderOverlay?.RecordAbstractEdges(self)))
 			{
-				var sourcesWithPathableNodes = new HashSet<CPos>(sources.Count);
-				List<CPos> unpathableNodes = null;
-				foreach (var (source, adjacentSource) in sourcesWithReachableNodes)
-				{
-					// Check if we have already found a route to this node before we attempt to expand the search.
-					var sourceStatus = reverseAbstractSearch.Graph[adjacentSource];
-					if (sourceStatus.Status == CellStatus.Closed)
-					{
-						if (sourceStatus.CostSoFar != PathGraph.PathCostForInvalidPath)
-							sourcesWithPathableNodes.Add(source);
-						else
-						{
-							unpathableNodes ??= new List<CPos>();
-							unpathableNodes.Add(adjacentSource);
-						}
-					}
-					else
-					{
-						reverseAbstractSearch.TargetPredicate = cell => cell == adjacentSource;
-						if (reverseAbstractSearch.ExpandToTarget())
-							sourcesWithPathableNodes.Add(source);
-						else
-						{
-							unpathableNodes ??= new List<CPos>();
-							unpathableNodes.Add(adjacentSource);
-						}
-					}
-				}
-
-				if (sourcesWithPathableNodes.Count == 0)
-					return PathFinder.NoPath;
-
 				using (var fromSrc = GetLocalPathSearch(
 					self, sourcesWithPathableNodes, target, customCost, ignoreActor, check, laneBias, null, heuristicWeightPercentage,
-					heuristic: Heuristic(reverseAbstractSearch, estimatedSearchSize, sourcesWithPathableNodes, unpathableNodes),
-					recorder: pathFinderOverlay?.RecordLocalEdges(self)))
+					Heuristic(reverseAbstractSearch, estimatedSearchSize, sourcesWithPathableNodes, unpathableNodes),
+					inReverse,
+					pathFinderOverlay?.RecordLocalEdges(self)))
 					return fromSrc.FindPath();
 			}
 		}
@@ -837,7 +826,7 @@ namespace OpenRA.Mods.Common.Pathfinder
 		/// </summary>
 		public List<CPos> FindPath(Actor self, CPos source, CPos target,
 			BlockedByActor check, int heuristicWeightPercentage, Func<CPos, int> customCost,
-			Actor ignoreActor, bool laneBias, PathFinderOverlay pathFinderOverlay)
+			Actor ignoreActor, bool inReverse, bool laneBias, PathFinderOverlay pathFinderOverlay)
 		{
 			if (costEstimator == null)
 				return PathFinder.NoPath;
@@ -863,7 +852,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 				List<CPos> localPath;
 				using (var search = GetLocalPathSearch(
 					self, new[] { source }, target, customCost, ignoreActor, check, laneBias, gridToSearch, heuristicWeightPercentage,
-					recorder: pathFinderOverlay?.RecordLocalEdges(self)))
+					null,
+					inReverse,
+					pathFinderOverlay?.RecordLocalEdges(self)))
 					localPath = search.FindPath();
 
 				if (localPath.Count > 0)
@@ -884,7 +875,14 @@ namespace OpenRA.Mods.Common.Pathfinder
 			// Call the other overload which can handle this scenario.
 			var sourceAbstractCell = AbstractCellForLocalCell(source);
 			if (sourceAbstractCell == null)
-				return FindPath(self, new[] { source }, target, check, heuristicWeightPercentage, customCost, ignoreActor, laneBias, pathFinderOverlay);
+				return FindPath(self, new[] { source }, target, check, heuristicWeightPercentage, customCost, ignoreActor, inReverse, laneBias, pathFinderOverlay);
+
+			// If the source and target belong to different domains, there is no path.
+			RebuildDomains();
+			var targetDomain = abstractDomains[targetAbstractCell.Value];
+			var sourceDomain = abstractDomains[sourceAbstractCell.Value];
+			if (sourceDomain != targetDomain)
+				return PathFinder.NoPath;
 
 			var targetEdge = EdgeFromLocalToAbstract(target, targetAbstractCell.Value);
 			var sourceEdge = EdgeFromLocalToAbstract(source, sourceAbstractCell.Value);
@@ -908,13 +906,14 @@ namespace OpenRA.Mods.Common.Pathfinder
 
 					using (var fromSrc = GetLocalPathSearch(
 						self, new[] { source }, target, customCost, ignoreActor, check, laneBias, null, heuristicWeightPercentage,
-						heuristic: Heuristic(reverseAbstractSearch, estimatedSearchSize, null, null),
-						recorder: pathFinderOverlay?.RecordLocalEdges(self)))
+						Heuristic(reverseAbstractSearch, estimatedSearchSize, null, null),
+						inReverse,
+						pathFinderOverlay?.RecordLocalEdges(self)))
 					using (var fromDest = GetLocalPathSearch(
 						self, new[] { target }, source, customCost, ignoreActor, check, laneBias, null, heuristicWeightPercentage,
-						heuristic: Heuristic(forwardAbstractSearch, estimatedSearchSize, null, null),
-						recorder: pathFinderOverlay?.RecordLocalEdges(self),
-						inReverse: true))
+						Heuristic(forwardAbstractSearch, estimatedSearchSize, null, null),
+						!inReverse,
+						pathFinderOverlay?.RecordLocalEdges(self)))
 						return PathSearch.FindBidiPath(fromDest, fromSrc);
 				}
 			}
@@ -1263,9 +1262,9 @@ namespace OpenRA.Mods.Common.Pathfinder
 		PathSearch GetLocalPathSearch(
 			Actor self, IEnumerable<CPos> srcs, CPos dst, Func<CPos, int> customCost,
 			Actor ignoreActor, BlockedByActor check, bool laneBias, Grid? grid, int heuristicWeightPercentage,
-			Func<CPos, bool, int> heuristic = null,
-			bool inReverse = false,
-			PathSearch.IRecorder recorder = null)
+			Func<CPos, bool, int> heuristic,
+			bool inReverse,
+			PathSearch.IRecorder recorder)
 		{
 			return PathSearch.ToTargetCell(
 				world, locomotor, self, srcs, dst, check, heuristicWeightPercentage,

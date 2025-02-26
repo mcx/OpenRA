@@ -107,16 +107,15 @@ namespace OpenRA.Mods.Common.Widgets
 
 			if (mi.Button == MouseButton.Left && mi.Event == MouseInputEvent.Up)
 			{
-				if (useClassicMouseStyle && HasMouseFocus)
+				if (useClassicMouseStyle && HasMouseFocus &&
+					!IsValidDragbox && World.Selection.Actors.Count != 0 &&
+					!multiClick && uog.InputOverridesSelection(World, mousePos, mi))
 				{
-					if (!IsValidDragbox && World.Selection.Actors.Any() && !multiClick && uog.InputOverridesSelection(World, mousePos, mi))
-					{
-						// Order units instead of selecting
-						ApplyOrders(World, mi);
-						isDragging = false;
-						YieldMouseFocus(mi);
-						return true;
-					}
+					// Order units instead of selecting
+					ApplyOrders(World, mi);
+					isDragging = false;
+					YieldMouseFocus(mi);
+					return true;
 				}
 
 				if (multiClick)
@@ -143,7 +142,7 @@ namespace OpenRA.Mods.Common.Widgets
 					/* The block below does three things:
 					// 1. Allows actor selection using a selection box regardless of input mode.
 					// 2. Allows actor deselection with a single click in the default input mode (UnitOrderGenerator).
-					// 3. Prevents units from getting deselected when exiting input modes (eg. AttackMove or Guard).
+					// 3. Prevents units from getting deselected when exiting input modes (e.g. AttackMove or Guard).
 					//
 					// We cannot check for UnitOrderGenerator here since it's the default order generator that gets activated in
 					// World.CancelInputMode. If we did check it, actor de-selection would not be possible by just clicking somewhere,
@@ -198,7 +197,7 @@ namespace OpenRA.Mods.Common.Widgets
 					var visualTarget = o.VisualFeedbackTarget.Type != TargetType.Invalid ? o.VisualFeedbackTarget : o.Target;
 
 					foreach (var notifyOrderIssued in world.WorldActor.TraitsImplementing<INotifyOrderIssued>())
-						flashed = notifyOrderIssued.OrderIssued(world, visualTarget);
+						flashed = notifyOrderIssued.OrderIssued(world, o.OrderString, visualTarget);
 				}
 
 				world.IssueOrder(o);

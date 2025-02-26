@@ -16,7 +16,6 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.Serialization;
 using OpenRA.Primitives;
 using OpenRA.Support;
 
@@ -26,7 +25,6 @@ namespace OpenRA
 	{
 		const char SplitComma = ',';
 
-		[Serializable]
 		public class MissingFieldsException : YamlException
 		{
 			public readonly string[] Missing;
@@ -45,13 +43,6 @@ namespace OpenRA
 			{
 				Header = missing.Length > 1 ? header : headerSingle ?? header;
 				Missing = missing;
-			}
-
-			public override void GetObjectData(SerializationInfo info, StreamingContext context)
-			{
-				base.GetObjectData(info, context);
-				info.AddValue("Missing", Missing);
-				info.AddValue("Header", Header);
 			}
 		}
 
@@ -87,6 +78,7 @@ namespace OpenRA
 				{ typeof(WAngle), ParseWAngle },
 				{ typeof(WRot), ParseWRot },
 				{ typeof(CPos), ParseCPos },
+				{ typeof(CPos[]), ParseCPosArray },
 				{ typeof(CVec), ParseCVec },
 				{ typeof(CVec[]), ParseCVecArray },
 				{ typeof(BooleanExpression), ParseBooleanExpression },
@@ -112,10 +104,19 @@ namespace OpenRA
 				{ typeof(Nullable<>), ParseNullable },
 			};
 
+		static readonly object BoxedTrue = true;
+		static readonly object BoxedFalse = false;
+		static readonly object[] BoxedInts = Exts.MakeArray(33, i => (object)i);
+
 		static object ParseInt(string fieldName, Type fieldType, string value, MemberInfo field)
 		{
-			if (Exts.TryParseIntegerInvariant(value, out var res))
+			if (Exts.TryParseInt32Invariant(value, out var res))
+			{
+				if (res >= 0 && res < BoxedInts.Length)
+					return BoxedInts[res];
 				return res;
+			}
+
 			return InvalidValueAction(value, fieldType, fieldName);
 		}
 
@@ -186,11 +187,11 @@ namespace OpenRA
 			if (value != null)
 			{
 				var parts = value.Split(SplitComma);
-				if (parts.Length == 3)
-				{
-					if (WDist.TryParse(parts[0], out var rx) && WDist.TryParse(parts[1], out var ry) && WDist.TryParse(parts[2], out var rz))
-						return new WVec(rx, ry, rz);
-				}
+				if (parts.Length == 3
+					&& WDist.TryParse(parts[0], out var rx)
+					&& WDist.TryParse(parts[1], out var ry)
+					&& WDist.TryParse(parts[2], out var rz))
+					return new WVec(rx, ry, rz);
 			}
 
 			return InvalidValueAction(value, fieldType, fieldName);
@@ -210,8 +211,8 @@ namespace OpenRA
 				for (var i = 0; i < vecs.Length; ++i)
 				{
 					if (WDist.TryParse(parts[3 * i], out var rx)
-							&& WDist.TryParse(parts[3 * i + 1], out var ry)
-							&& WDist.TryParse(parts[3 * i + 2], out var rz))
+						&& WDist.TryParse(parts[3 * i + 1], out var ry)
+						&& WDist.TryParse(parts[3 * i + 2], out var rz))
 						vecs[i] = new WVec(rx, ry, rz);
 				}
 
@@ -226,13 +227,11 @@ namespace OpenRA
 			if (value != null)
 			{
 				var parts = value.Split(SplitComma);
-				if (parts.Length == 3)
-				{
-					if (WDist.TryParse(parts[0], out var rx)
-						&& WDist.TryParse(parts[1], out var ry)
-						&& WDist.TryParse(parts[2], out var rz))
-						return new WPos(rx, ry, rz);
-				}
+				if (parts.Length == 3
+					&& WDist.TryParse(parts[0], out var rx)
+					&& WDist.TryParse(parts[1], out var ry)
+					&& WDist.TryParse(parts[2], out var rz))
+					return new WPos(rx, ry, rz);
 			}
 
 			return InvalidValueAction(value, fieldType, fieldName);
@@ -240,7 +239,7 @@ namespace OpenRA
 
 		static object ParseWAngle(string fieldName, Type fieldType, string value, MemberInfo field)
 		{
-			if (Exts.TryParseIntegerInvariant(value, out var res))
+			if (Exts.TryParseInt32Invariant(value, out var res))
 				return new WAngle(res);
 			return InvalidValueAction(value, fieldType, fieldName);
 		}
@@ -250,13 +249,11 @@ namespace OpenRA
 			if (value != null)
 			{
 				var parts = value.Split(SplitComma);
-				if (parts.Length == 3)
-				{
-					if (Exts.TryParseIntegerInvariant(parts[0], out var rr)
-							&& Exts.TryParseIntegerInvariant(parts[1], out var rp)
-							&& Exts.TryParseIntegerInvariant(parts[2], out var ry))
-						return new WRot(new WAngle(rr), new WAngle(rp), new WAngle(ry));
-				}
+				if (parts.Length == 3
+					&& Exts.TryParseInt32Invariant(parts[0], out var rr)
+					&& Exts.TryParseInt32Invariant(parts[1], out var rp)
+					&& Exts.TryParseInt32Invariant(parts[2], out var ry))
+					return new WRot(new WAngle(rr), new WAngle(rp), new WAngle(ry));
 			}
 
 			return InvalidValueAction(value, fieldType, fieldName);
@@ -269,10 +266,33 @@ namespace OpenRA
 				var parts = value.Split(SplitComma, StringSplitOptions.RemoveEmptyEntries);
 				if (parts.Length == 3)
 					return new CPos(
-						Exts.ParseIntegerInvariant(parts[0]),
-						Exts.ParseIntegerInvariant(parts[1]),
-						Exts.ParseByte(parts[2]));
-				return new CPos(Exts.ParseIntegerInvariant(parts[0]), Exts.ParseIntegerInvariant(parts[1]));
+						Exts.ParseInt32Invariant(parts[0]),
+						Exts.ParseInt32Invariant(parts[1]),
+						Exts.ParseByteInvariant(parts[2]));
+				return new CPos(Exts.ParseInt32Invariant(parts[0]), Exts.ParseInt32Invariant(parts[1]));
+			}
+
+			return InvalidValueAction(value, fieldType, fieldName);
+		}
+
+		static object ParseCPosArray(string fieldName, Type fieldType, string value, MemberInfo field)
+		{
+			if (value != null)
+			{
+				var parts = value.Split(SplitComma);
+
+				if (parts.Length % 2 != 0)
+					return InvalidValueAction(value, fieldType, fieldName);
+
+				var vecs = new CPos[parts.Length / 2];
+				for (var i = 0; i < vecs.Length; i++)
+				{
+					if (int.TryParse(parts[2 * i], out var rx)
+							&& int.TryParse(parts[2 * i + 1], out var ry))
+						vecs[i] = new CPos(rx, ry);
+				}
+
+				return vecs;
 			}
 
 			return InvalidValueAction(value, fieldType, fieldName);
@@ -283,7 +303,7 @@ namespace OpenRA
 			if (value != null)
 			{
 				var parts = value.Split(SplitComma, StringSplitOptions.RemoveEmptyEntries);
-				return new CVec(Exts.ParseIntegerInvariant(parts[0]), Exts.ParseIntegerInvariant(parts[1]));
+				return new CVec(Exts.ParseInt32Invariant(parts[0]), Exts.ParseInt32Invariant(parts[1]));
 			}
 
 			return InvalidValueAction(value, fieldType, fieldName);
@@ -361,7 +381,7 @@ namespace OpenRA
 		static object ParseBool(string fieldName, Type fieldType, string value, MemberInfo field)
 		{
 			if (bool.TryParse(value.ToLowerInvariant(), out var result))
-				return result;
+				return result ? BoxedTrue : BoxedFalse;
 
 			return InvalidValueAction(value, fieldType, fieldName);
 		}
@@ -376,7 +396,7 @@ namespace OpenRA
 
 				var ints = new int2[parts.Length / 2];
 				for (var i = 0; i < ints.Length; i++)
-					ints[i] = new int2(Exts.ParseIntegerInvariant(parts[2 * i]), Exts.ParseIntegerInvariant(parts[2 * i + 1]));
+					ints[i] = new int2(Exts.ParseInt32Invariant(parts[2 * i]), Exts.ParseInt32Invariant(parts[2 * i + 1]));
 
 				return ints;
 			}
@@ -389,7 +409,7 @@ namespace OpenRA
 			if (value != null)
 			{
 				var parts = value.Split(SplitComma, StringSplitOptions.RemoveEmptyEntries);
-				return new Size(Exts.ParseIntegerInvariant(parts[0]), Exts.ParseIntegerInvariant(parts[1]));
+				return new Size(Exts.ParseInt32Invariant(parts[0]), Exts.ParseInt32Invariant(parts[1]));
 			}
 
 			return InvalidValueAction(value, fieldType, fieldName);
@@ -403,7 +423,7 @@ namespace OpenRA
 				if (parts.Length != 2)
 					return InvalidValueAction(value, fieldType, fieldName);
 
-				return new int2(Exts.ParseIntegerInvariant(parts[0]), Exts.ParseIntegerInvariant(parts[1]));
+				return new int2(Exts.ParseInt32Invariant(parts[0]), Exts.ParseInt32Invariant(parts[1]));
 			}
 
 			return InvalidValueAction(value, fieldType, fieldName);
@@ -451,10 +471,10 @@ namespace OpenRA
 			{
 				var parts = value.Split(SplitComma, StringSplitOptions.RemoveEmptyEntries);
 				return new Rectangle(
-					Exts.ParseIntegerInvariant(parts[0]),
-					Exts.ParseIntegerInvariant(parts[1]),
-					Exts.ParseIntegerInvariant(parts[2]),
-					Exts.ParseIntegerInvariant(parts[3]));
+					Exts.ParseInt32Invariant(parts[0]),
+					Exts.ParseInt32Invariant(parts[1]),
+					Exts.ParseInt32Invariant(parts[2]),
+					Exts.ParseInt32Invariant(parts[3]));
 			}
 
 			return InvalidValueAction(value, fieldType, fieldName);
@@ -469,11 +489,11 @@ namespace OpenRA
 
 		static object ParseHashSetOrList(string fieldName, Type fieldType, string value, MiniYaml yaml, MemberInfo field)
 		{
-			var set = Activator.CreateInstance(fieldType);
 			if (value == null)
-				return set;
+				return Activator.CreateInstance(fieldType);
 
 			var parts = value.Split(SplitComma, StringSplitOptions.RemoveEmptyEntries);
+			var set = Activator.CreateInstance(fieldType, parts.Length);
 			var arguments = fieldType.GetGenericArguments();
 			var addMethod = fieldType.GetMethod(nameof(List<object>.Add), arguments);
 			var addArgs = new object[1];
@@ -488,7 +508,10 @@ namespace OpenRA
 
 		static object ParseDictionary(string fieldName, Type fieldType, string value, MiniYaml yaml, MemberInfo field)
 		{
-			var dict = Activator.CreateInstance(fieldType);
+			if (yaml == null)
+				return Activator.CreateInstance(fieldType);
+
+			var dict = Activator.CreateInstance(fieldType, yaml.Nodes.Length);
 			var arguments = fieldType.GetGenericArguments();
 			var addMethod = fieldType.GetMethod(nameof(Dictionary<object, object>.Add), arguments);
 			var addArgs = new object[2];
@@ -519,7 +542,7 @@ namespace OpenRA
 			if (string.IsNullOrEmpty(value))
 				return null;
 
-			var innerType = fieldType.GetGenericArguments().First();
+			var innerType = fieldType.GetGenericArguments()[0];
 			var innerValue = GetValue("Nullable<T>", innerType, value, field);
 			return fieldType.GetConstructor(new[] { innerType }).Invoke(new[] { innerValue });
 		}
@@ -527,7 +550,7 @@ namespace OpenRA
 		public static void Load(object self, MiniYaml my)
 		{
 			var loadInfo = TypeLoadInfo[self.GetType()];
-			var missing = new List<string>();
+			List<string> missing = null;
 
 			Dictionary<string, MiniYaml> md = null;
 
@@ -542,6 +565,7 @@ namespace OpenRA
 						val = fli.Loader(my);
 					else
 					{
+						missing ??= new List<string>();
 						missing.Add(fli.YamlName);
 						continue;
 					}
@@ -551,7 +575,11 @@ namespace OpenRA
 					if (!TryGetValueFromYaml(fli.YamlName, fli.Field, md, out val))
 					{
 						if (fli.Attribute.Required)
+						{
+							missing ??= new List<string>();
 							missing.Add(fli.YamlName);
+						}
+
 						continue;
 					}
 				}
@@ -559,7 +587,7 @@ namespace OpenRA
 				fli.Field.SetValue(self, val);
 			}
 
-			if (missing.Count > 0)
+			if (missing != null)
 				throw new MissingFieldsException(missing.ToArray());
 		}
 
@@ -620,12 +648,17 @@ namespace OpenRA
 
 		public static object GetValue(string fieldName, Type fieldType, string value, MemberInfo field)
 		{
-			return GetValue(fieldName, fieldType, new MiniYaml(value), field);
+			return GetValue(fieldName, fieldType, value, null, field);
 		}
 
 		public static object GetValue(string fieldName, Type fieldType, MiniYaml yaml, MemberInfo field)
 		{
-			var value = yaml.Value?.Trim();
+			return GetValue(fieldName, fieldType, yaml.Value, yaml, field);
+		}
+
+		static object GetValue(string fieldName, Type fieldType, string value, MiniYaml yaml, MemberInfo field)
+		{
+			value = value?.Trim();
 			if (fieldType.IsGenericType)
 			{
 				if (GenericTypeParsers.TryGetValue(fieldType.GetGenericTypeDefinition(), out var parseFuncGeneric))

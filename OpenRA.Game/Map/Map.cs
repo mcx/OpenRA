@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -90,13 +91,13 @@ namespace OpenRA
 				throw new InvalidOperationException("Map does not have a field/property " + fieldName);
 
 			var t = field != null ? field.FieldType : property.PropertyType;
-			type = t == typeof(List<MiniYamlNode>) ? Type.NodeList :
+			type = t == typeof(IReadOnlyCollection<MiniYamlNode>) ? Type.NodeList :
 				t == typeof(MiniYaml) ? Type.MiniYaml : Type.Normal;
 		}
 
-		public void Deserialize(Map map, List<MiniYamlNode> nodes)
+		public void Deserialize(Map map, MiniYaml yaml)
 		{
-			var node = nodes.FirstOrDefault(n => n.Key == key);
+			var node = yaml.NodeWithKeyOrDefault(key);
 			if (node == null)
 			{
 				if (required)
@@ -130,14 +131,14 @@ namespace OpenRA
 			var value = field != null ? field.GetValue(map) : property.GetValue(map, null);
 			if (type == Type.NodeList)
 			{
-				var listValue = (List<MiniYamlNode>)value;
+				var listValue = (IReadOnlyCollection<MiniYamlNode>)value;
 				if (required || listValue.Count > 0)
 					nodes.Add(new MiniYamlNode(key, null, listValue));
 			}
 			else if (type == Type.MiniYaml)
 			{
 				var yamlValue = (MiniYaml)value;
-				if (required || (yamlValue != null && (yamlValue.Value != null || yamlValue.Nodes.Count > 0)))
+				if (required || (yamlValue != null && (yamlValue.Value != null || yamlValue.Nodes.Length > 0)))
 					nodes.Add(new MiniYamlNode(key, yamlValue));
 			}
 			else
@@ -158,26 +159,26 @@ namespace OpenRA
 		/// <summary>Defines the order of the fields in map.yaml.</summary>
 		static readonly MapField[] YamlFields =
 		{
-			new MapField("MapFormat"),
-			new MapField("RequiresMod"),
-			new MapField("Title"),
-			new MapField("Author"),
-			new MapField("Tileset"),
-			new MapField("MapSize"),
-			new MapField("Bounds"),
-			new MapField("Visibility"),
-			new MapField("Categories"),
-			new MapField("LockPreview", required: false, ignoreIfValue: "False"),
-			new MapField("Players", "PlayerDefinitions"),
-			new MapField("Actors", "ActorDefinitions"),
-			new MapField("Rules", "RuleDefinitions", required: false),
-			new MapField("Translations", "TranslationDefinitions", required: false),
-			new MapField("Sequences", "SequenceDefinitions", required: false),
-			new MapField("ModelSequences", "ModelSequenceDefinitions", required: false),
-			new MapField("Weapons", "WeaponDefinitions", required: false),
-			new MapField("Voices", "VoiceDefinitions", required: false),
-			new MapField("Music", "MusicDefinitions", required: false),
-			new MapField("Notifications", "NotificationDefinitions", required: false),
+			new("MapFormat"),
+			new("RequiresMod"),
+			new("Title"),
+			new("Author"),
+			new("Tileset"),
+			new("MapSize"),
+			new("Bounds"),
+			new("Visibility"),
+			new("Categories"),
+			new("LockPreview", required: false, ignoreIfValue: "False"),
+			new("Players", nameof(PlayerDefinitions)),
+			new("Actors", nameof(ActorDefinitions)),
+			new("Rules", nameof(RuleDefinitions), required: false),
+			new("FluentMessages", nameof(FluentMessageDefinitions), required: false),
+			new("Sequences", nameof(SequenceDefinitions), required: false),
+			new("ModelSequences", nameof(ModelSequenceDefinitions), required: false),
+			new("Weapons", nameof(WeaponDefinitions), required: false),
+			new("Voices", nameof(VoiceDefinitions), required: false),
+			new("Music", nameof(MusicDefinitions), required: false),
+			new("Notifications", nameof(NotificationDefinitions), required: false),
 		};
 
 		// Format versions
@@ -197,18 +198,18 @@ namespace OpenRA
 		public int2 MapSize { get; private set; }
 
 		// Player and actor yaml. Public for access by the map importers and lint checks.
-		public List<MiniYamlNode> PlayerDefinitions = new();
-		public List<MiniYamlNode> ActorDefinitions = new();
+		public IReadOnlyCollection<MiniYamlNode> PlayerDefinitions = ImmutableArray<MiniYamlNode>.Empty;
+		public IReadOnlyCollection<MiniYamlNode> ActorDefinitions = ImmutableArray<MiniYamlNode>.Empty;
 
 		// Custom map yaml. Public for access by the map importers and lint checks
-		public readonly MiniYaml RuleDefinitions;
-		public readonly MiniYaml TranslationDefinitions;
-		public readonly MiniYaml SequenceDefinitions;
-		public readonly MiniYaml ModelSequenceDefinitions;
-		public readonly MiniYaml WeaponDefinitions;
-		public readonly MiniYaml VoiceDefinitions;
-		public readonly MiniYaml MusicDefinitions;
-		public readonly MiniYaml NotificationDefinitions;
+		public MiniYaml RuleDefinitions;
+		public MiniYaml FluentMessageDefinitions;
+		public MiniYaml SequenceDefinitions;
+		public MiniYaml ModelSequenceDefinitions;
+		public MiniYaml WeaponDefinitions;
+		public MiniYaml VoiceDefinitions;
+		public MiniYaml MusicDefinitions;
+		public MiniYaml NotificationDefinitions;
 
 		public readonly Dictionary<CPos, TerrainTile> ReplacedInvalidTerrainTiles = new();
 
@@ -274,7 +275,10 @@ namespace OpenRA
 			try
 			{
 				foreach (var filename in contents)
-					if (filename.EndsWith(".yaml") || filename.EndsWith(".bin") || filename.EndsWith(".lua") || (format >= 12 && filename == "map.png"))
+					if (filename.EndsWith(".yaml", StringComparison.Ordinal) ||
+						filename.EndsWith(".bin", StringComparison.Ordinal) ||
+						filename.EndsWith(".lua", StringComparison.Ordinal) ||
+						(format >= 12 && filename == "map.png"))
 						streams.Add(package.GetStream(filename));
 
 				// Take the SHA1
@@ -357,15 +361,15 @@ namespace OpenRA
 			if (!Package.Contains("map.yaml") || !Package.Contains("map.bin"))
 				throw new InvalidDataException($"Not a valid map\n File: {package.Name}");
 
-			var yaml = new MiniYaml(null, MiniYaml.FromStream(Package.GetStream("map.yaml"), package.Name));
+			var yaml = new MiniYaml(null, MiniYaml.FromStream(Package.GetStream("map.yaml"), $"{package.Name}:map.yaml"));
 			foreach (var field in YamlFields)
-				field.Deserialize(this, yaml.Nodes);
+				field.Deserialize(this, yaml);
 
 			if (MapFormat < SupportedMapFormat)
 				throw new InvalidDataException($"Map format {MapFormat} is not supported.\n File: {package.Name}");
 
-			PlayerDefinitions = MiniYaml.NodesOrEmpty(yaml, "Players");
-			ActorDefinitions = MiniYaml.NodesOrEmpty(yaml, "Actors");
+			PlayerDefinitions = yaml.NodeWithKeyOrDefault("Players")?.Value.Nodes ?? ImmutableArray<MiniYamlNode>.Empty;
+			ActorDefinitions = yaml.NodeWithKeyOrDefault("Actors")?.Value.Nodes ?? ImmutableArray<MiniYamlNode>.Empty;
 
 			Grid = modData.Manifest.Get<MapGrid>();
 
@@ -607,7 +611,7 @@ namespace OpenRA
 
 			// Odd-height ramps get bumped up a level to the next even height layer
 			if ((height & 1) == 1 && Ramp[uv] != 0)
-				height += 1;
+				height++;
 
 			var candidates = new List<PPos>();
 
@@ -646,21 +650,24 @@ namespace OpenRA
 				foreach (var file in Package.Contents)
 					toPackage.Update(file, Package.GetStream(file).ReadAllBytes());
 
-			if (!LockPreview)
+			void UpdatePackage(string filename, byte[] data)
 			{
-				var previewData = SavePreview();
-				if (Package != toPackage || !Enumerable.SequenceEqual(previewData, Package.GetStream("map.png").ReadAllBytes()))
-					toPackage.Update("map.png", previewData);
+				if (Package != toPackage)
+					toPackage.Update(filename, data);
+				else
+				{
+					var stream = Package.GetStream(filename);
+					if (stream == null || !Enumerable.SequenceEqual(data, stream.ReadAllBytes()))
+						toPackage.Update(filename, data);
+				}
 			}
 
-			// Update the package with the new map data
-			var textData = Encoding.UTF8.GetBytes(root.WriteToString());
-			if (Package != toPackage || !Enumerable.SequenceEqual(textData, Package.GetStream("map.yaml").ReadAllBytes()))
-				toPackage.Update("map.yaml", textData);
+			if (!LockPreview)
+				UpdatePackage("map.png", SavePreview());
 
-			var binaryData = SaveBinaryData();
-			if (Package != toPackage || !Enumerable.SequenceEqual(binaryData, Package.GetStream("map.bin").ReadAllBytes()))
-				toPackage.Update("map.bin", binaryData);
+			// Update the package with the new map data
+			UpdatePackage("map.yaml", Encoding.UTF8.GetBytes(root.WriteToString()));
+			UpdatePackage("map.bin", SaveBinaryData());
 
 			Package = toPackage;
 
@@ -681,16 +688,16 @@ namespace OpenRA
 				writer.Write((ushort)MapSize.Y);
 
 				// Data offsets
-				var tilesOffset = 17;
+				const int TilesOffset = 17;
 				var heightsOffset = Grid.MaximumTerrainHeight > 0 ? 3 * MapSize.X * MapSize.Y + 17 : 0;
 				var resourcesOffset = (Grid.MaximumTerrainHeight > 0 ? 4 : 3) * MapSize.X * MapSize.Y + 17;
 
-				writer.Write((uint)tilesOffset);
+				writer.Write((uint)TilesOffset);
 				writer.Write((uint)heightsOffset);
 				writer.Write((uint)resourcesOffset);
 
 				// Tile data
-				if (tilesOffset != 0)
+				if (TilesOffset != 0)
 				{
 					for (var i = 0; i < MapSize.X; i++)
 					{
@@ -772,19 +779,10 @@ namespace OpenRA
 
 			if (Grid.MaximumTerrainHeight > 0)
 			{
-				// The minimap is drawn in cell space, so we need to
-				// unproject the PPos bounds to find the MPos boundaries.
-				// This matches the calculation in RadarWidget that is used ingame
-				for (var x = Bounds.Left; x < Bounds.Right; x++)
-				{
-					var allTop = Unproject(new PPos(x, Bounds.Top));
-					var allBottom = Unproject(new PPos(x, Bounds.Bottom));
-					if (allTop.Count > 0)
-						top = Math.Min(top, allTop.MinBy(uv => uv.V).V);
+				(top, bottom) = GetCellSpaceBounds();
 
-					if (allBottom.Count > 0)
-						bottom = Math.Max(bottom, allBottom.MaxBy(uv => uv.V).V);
-				}
+				if (top == int.MaxValue || bottom == int.MinValue)
+					throw new InvalidDataException("The map has invalid boundaries");
 			}
 			else
 			{
@@ -801,7 +799,7 @@ namespace OpenRA
 				bitmapWidth = 2 * bitmapWidth - 1;
 
 			var stride = bitmapWidth * 4;
-			var pxStride = 4;
+			const int PxStride = 4;
 			var minimapData = new byte[stride * height];
 			(Color Left, Color Right) terrainColor = default;
 
@@ -823,10 +821,10 @@ namespace OpenRA
 					{
 						// Odd rows are shifted right by 1px
 						var dx = uv.V & 1;
-						var xOffset = pxStride * (2 * x + dx);
+						var xOffset = PxStride * (2 * x + dx);
 						if (x + dx > 0)
 						{
-							var z = y * stride + xOffset - pxStride;
+							var z = y * stride + xOffset - PxStride;
 							var c = actorColor.A == 0 ? terrainColor.Left : actorColor;
 							minimapData[z++] = c.R;
 							minimapData[z++] = c.G;
@@ -846,7 +844,7 @@ namespace OpenRA
 					}
 					else
 					{
-						var z = y * stride + pxStride * x;
+						var z = y * stride + PxStride * x;
 						var c = actorColor.A == 0 ? terrainColor.Left : actorColor;
 						minimapData[z++] = c.R;
 						minimapData[z++] = c.G;
@@ -858,6 +856,28 @@ namespace OpenRA
 
 			var png = new Png(minimapData, SpriteFrameType.Rgba32, bitmapWidth, height);
 			return png.Save();
+		}
+
+		public (int Top, int Bottom) GetCellSpaceBounds()
+		{
+			var top = int.MaxValue;
+			var bottom = int.MinValue;
+
+			// The minimap is drawn in cell space, so we need to
+			// unproject the PPos bounds to find the MPos boundaries.
+			// This matches the calculation in RadarWidget that is used ingame
+			for (var x = Bounds.Left; x < Bounds.Right; x++)
+			{
+				var allTop = Unproject(new PPos(x, Bounds.Top));
+				var allBottom = Unproject(new PPos(x, Bounds.Bottom));
+				if (allTop.Count > 0)
+					top = Math.Min(top, allTop.MinBy(uv => uv.V).V);
+
+				if (allBottom.Count > 0)
+					bottom = Math.Max(bottom, allBottom.MaxBy(uv => uv.V).V);
+			}
+
+			return (top, bottom);
 		}
 
 		public bool Contains(CPos cell)
@@ -1126,6 +1146,11 @@ namespace OpenRA
 
 		public byte GetTerrainIndex(CPos cell)
 		{
+			return GetTerrainIndex(cell.ToMPos(this));
+		}
+
+		public byte GetTerrainIndex(MPos uv)
+		{
 			// Lazily initialize a cache for terrain indexes.
 			if (cachedTerrainIndexes == null)
 			{
@@ -1133,7 +1158,6 @@ namespace OpenRA
 				cachedTerrainIndexes.Clear(InvalidCachedTerrainIndex);
 			}
 
-			var uv = cell.ToMPos(this);
 			var terrainIndex = cachedTerrainIndexes[uv];
 
 			// PERF: Cache terrain indexes per cell on demand.
@@ -1148,7 +1172,12 @@ namespace OpenRA
 
 		public TerrainTypeInfo GetTerrainInfo(CPos cell)
 		{
-			return Rules.TerrainInfo.TerrainTypes[GetTerrainIndex(cell)];
+			return GetTerrainInfo(cell.ToMPos(this));
+		}
+
+		public TerrainTypeInfo GetTerrainInfo(MPos uv)
+		{
+			return Rules.TerrainInfo.TerrainTypes[GetTerrainIndex(uv)];
 		}
 
 		public CPos Clamp(CPos cell)
@@ -1180,7 +1209,7 @@ namespace OpenRA
 			// Project this guessed cell and take the first available cell
 			// If it is projected outside the layer, then make another guess.
 			var allProjected = ProjectedCellsCovering(uv);
-			var projected = allProjected.Length > 0 ? allProjected.First()
+			var projected = allProjected.Length > 0 ? allProjected[0]
 				: new PPos(uv.U, uv.V.Clamp(Bounds.Top, Bounds.Bottom));
 
 			// Clamp the projected cell to the map area
@@ -1249,7 +1278,7 @@ namespace OpenRA
 			PPos edge;
 			if (allProjected.Length > 0)
 			{
-				var puv = allProjected.First();
+				var puv = allProjected[0];
 				var horizontalBound = (puv.U - Bounds.Left < Bounds.Width / 2) ? Bounds.Left : Bounds.Right;
 				var verticalBound = (puv.V - Bounds.Top < Bounds.Height / 2) ? Bounds.Top : Bounds.Bottom;
 
@@ -1349,13 +1378,18 @@ namespace OpenRA
 				throw new ArgumentOutOfRangeException(nameof(maxRange),
 					$"The requested range ({maxRange}) cannot exceed the value of MaximumTileSearchRange ({Grid.MaximumTileSearchRange})");
 
-			for (var i = minRange; i <= maxRange; i++)
+			return FindTilesInAnnulus();
+
+			IEnumerable<CPos> FindTilesInAnnulus()
 			{
-				foreach (var offset in Grid.TilesByDistance[i])
+				for (var i = minRange; i <= maxRange; i++)
 				{
-					var t = offset + center;
-					if (allowOutsideBounds ? Tiles.Contains(t) : Contains(t))
-						yield return t;
+					foreach (var offset in Grid.TilesByDistance[i])
+					{
+						var t = offset + center;
+						if (allowOutsideBounds ? Tiles.Contains(t) : Contains(t))
+							yield return t;
+					}
 				}
 			}
 		}
@@ -1402,11 +1436,11 @@ namespace OpenRA
 			return modData.DefaultFileSystem.Exists(filename);
 		}
 
-		public bool IsExternalModFile(string filename)
+		public bool IsExternalFile(string filename)
 		{
 			// Explicit package paths never refer to a map
 			if (filename.Contains('|'))
-				return modData.DefaultFileSystem.IsExternalModFile(filename);
+				return modData.DefaultFileSystem.IsExternalFile(filename);
 
 			return false;
 		}

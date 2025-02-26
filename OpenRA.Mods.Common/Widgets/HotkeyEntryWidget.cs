@@ -44,11 +44,6 @@ namespace OpenRA.Mods.Common.Widgets
 			VisualHeight = widget.VisualHeight;
 		}
 
-		public override bool TakeKeyboardFocus()
-		{
-			return base.TakeKeyboardFocus();
-		}
-
 		public override bool YieldKeyboardFocus()
 		{
 			OnLoseFocus();
@@ -162,6 +157,6 @@ namespace OpenRA.Mods.Common.Widgets
 				Game.Renderer.DisableScissor();
 		}
 
-		public override Widget Clone() { return new HotkeyEntryWidget(this); }
+		public override HotkeyEntryWidget Clone() { return new HotkeyEntryWidget(this); }
 	}
 }

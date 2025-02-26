@@ -16,7 +16,6 @@ using OpenRA.Primitives;
 
 namespace OpenRA.Graphics
 {
-	[Serializable]
 	public class SheetOverflowException : Exception
 	{
 		public SheetOverflowException(string message)
@@ -82,16 +81,16 @@ namespace OpenRA.Graphics
 			this.margin = margin;
 		}
 
-		public Sprite Add(ISpriteFrame frame) { return Add(frame.Data, frame.Type, frame.Size, 0, frame.Offset); }
-		public Sprite Add(byte[] src, SpriteFrameType type, Size size) { return Add(src, type, size, 0, float3.Zero); }
-		public Sprite Add(byte[] src, SpriteFrameType type, Size size, float zRamp, in float3 spriteOffset)
+		public Sprite Add(ISpriteFrame frame, bool premultiplied = false) { return Add(frame.Data, frame.Type, frame.Size, 0, frame.Offset, premultiplied); }
+		public Sprite Add(byte[] src, SpriteFrameType type, Size size, bool premultiplied = false) { return Add(src, type, size, 0, float3.Zero, premultiplied); }
+		public Sprite Add(byte[] src, SpriteFrameType type, Size size, float zRamp, in float3 spriteOffset, bool premultiplied = false)
 		{
 			// Don't bother allocating empty sprites
 			if (size.Width == 0 || size.Height == 0)
 				return new Sprite(Current, Rectangle.Empty, 0, spriteOffset, CurrentChannel, BlendMode.Alpha);
 
 			var rect = Allocate(size, zRamp, spriteOffset);
-			Util.FastCopyIntoChannel(rect, src, type);
+			Util.FastCopyIntoChannel(rect, src, type, premultiplied);
 			Current.CommitBufferedData();
 			return rect;
 		}
@@ -130,8 +129,13 @@ namespace OpenRA.Graphics
 				var next = NextChannel(CurrentChannel);
 				if (next == null)
 				{
-					Current.ReleaseBuffer();
+					var previous = Current;
 					Current = allocateSheet();
+
+					// Reuse the backing buffer between sheets where possible.
+					// This avoids allocating additional buffers which the GC must clean up.
+					previous.ReleaseBufferAndTryTransferTo(Current);
+
 					sheets.Add(Current);
 					CurrentChannel = Type == SheetType.Indexed ? TextureChannel.Red : TextureChannel.RGBA;
 				}
@@ -142,7 +146,9 @@ namespace OpenRA.Graphics
 				p = int2.Zero;
 			}
 
-			var rect = new Sprite(Current, new Rectangle(p.X + margin, p.Y + margin, imageSize.Width, imageSize.Height), zRamp, spriteOffset, CurrentChannel, BlendMode.Alpha, scale);
+			var rect = new Sprite(
+				Current, new Rectangle(p.X + margin, p.Y + margin, imageSize.Width, imageSize.Height),
+				zRamp, spriteOffset, CurrentChannel, BlendMode.Alpha, scale);
 			p += new int2(imageSize.Width + margin, 0);
 
 			return rect;

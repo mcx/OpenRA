@@ -54,12 +54,14 @@ namespace OpenRA.Mods.Common.Traits
 
 		public override void RulesetLoaded(Ruleset rules, ActorInfo ai)
 		{
-			var locomotorInfos = rules.Actors[SystemActors.World].TraitInfos<LocomotorInfo>();
-			LocomotorInfo = locomotorInfos.FirstOrDefault(li => li.Name == Locomotor);
-			if (LocomotorInfo == null)
+			var locomotorInfos = rules.Actors[SystemActors.World].TraitInfos<LocomotorInfo>()
+				.Where(li => li.Name == Locomotor).ToList();
+			if (locomotorInfos.Count == 0)
 				throw new YamlException($"A locomotor named '{Locomotor}' doesn't exist.");
-			else if (locomotorInfos.Count(li => li.Name == Locomotor) > 1)
+			else if (locomotorInfos.Count > 1)
 				throw new YamlException($"There is more than one locomotor named '{Locomotor}'.");
+
+			LocomotorInfo = locomotorInfos[0];
 
 			base.RulesetLoaded(rules, ai);
 		}
@@ -110,6 +112,9 @@ namespace OpenRA.Mods.Common.Traits
 
 			if (order.OrderString == "Move")
 			{
+				if (!order.Target.IsValidFor(self))
+					return;
+
 				var cell = self.World.Map.Clamp(this.self.World.Map.CellContaining(order.Target.CenterPosition));
 				if (!Info.LocomotorInfo.MoveIntoShroud && !self.Owner.Shroud.IsExplored(cell))
 					return;
@@ -199,9 +204,9 @@ namespace OpenRA.Mods.Common.Traits
 
 				var explored = self.Owner.Shroud.IsExplored(location);
 				if (!self.World.Map.Contains(location) ||
-				    !(self.CurrentActivity is Transform || mobile.transforms.Any(t => !t.IsTraitDisabled && !t.IsTraitPaused))
-				    || (!explored && !mobile.locomotor.Info.MoveIntoShroud)
-				    || (explored && !CanEnterCell(self, location)))
+					!(self.CurrentActivity is Transform || mobile.transforms.Any(t => !t.IsTraitDisabled && !t.IsTraitPaused))
+					|| (!explored && !mobile.locomotor.Info.MoveIntoShroud)
+					|| (explored && !CanEnterCell(self, location)))
 					cursor = mobile.Info.BlockedCursor;
 				else if (!explored || !mobile.Info.TerrainCursors.TryGetValue(self.World.Map.GetTerrainInfo(location).Type, out cursor))
 					cursor = mobile.Info.Cursor;

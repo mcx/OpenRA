@@ -18,7 +18,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 {
 	public class WorldTooltipLogic : ChromeLogic
 	{
-		[TranslationReference]
+		[FluentReference]
 		const string UnrevealedTerrain = "label-unrevealed-terrain";
 
 		[ObjectCreator.UseCtor]
@@ -44,7 +44,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var extraHeightOnDouble = extras.Bounds.Y;
 			var extraHeightOnSingle = extraHeightOnDouble - (doubleHeight - singleHeight);
 
-			var unrevealedTerrain = TranslationProvider.GetString(UnrevealedTerrain);
+			var unrevealedTerrain = FluentProvider.GetMessage(UnrevealedTerrain);
 
 			tooltipContainer.BeforeRender = () =>
 			{
@@ -65,24 +65,30 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 						labelText = viewport.ResourceTooltip;
 						break;
 					case WorldTooltipType.Actor:
-						{
-							o = viewport.ActorTooltip.Owner;
-							showOwner = o != null && !o.NonCombatant && viewport.ActorTooltip.TooltipInfo.IsOwnerRowVisible;
+					{
+						o = viewport.ActorTooltip.Owner;
+						showOwner = o != null && !o.NonCombatant && viewport.ActorTooltip.TooltipInfo.IsOwnerRowVisible;
 
-							var stance = o == null || world.RenderPlayer == null ? PlayerRelationship.None : o.RelationshipWith(world.RenderPlayer);
-							labelText = viewport.ActorTooltip.TooltipInfo.TooltipForPlayerStance(stance);
-							break;
-						}
+						if (showOwner)
+							ownerColor = o.Color;
+
+						var stance = o == null || world.RenderPlayer == null ? PlayerRelationship.None : o.RelationshipWith(world.RenderPlayer);
+						labelText = viewport.ActorTooltip.TooltipInfo.TooltipForPlayerStance(stance);
+						break;
+					}
 
 					case WorldTooltipType.FrozenActor:
-						{
-							o = viewport.FrozenActorTooltip.TooltipOwner;
-							showOwner = o != null && !o.NonCombatant && viewport.FrozenActorTooltip.TooltipInfo.IsOwnerRowVisible;
+					{
+						o = viewport.FrozenActorTooltip.TooltipOwner;
+						showOwner = o != null && !o.NonCombatant && viewport.FrozenActorTooltip.TooltipInfo.IsOwnerRowVisible;
 
-							var stance = o == null || world.RenderPlayer == null ? PlayerRelationship.None : o.RelationshipWith(world.RenderPlayer);
-							labelText = viewport.FrozenActorTooltip.TooltipInfo.TooltipForPlayerStance(stance);
-							break;
-						}
+						if (showOwner)
+							ownerColor = o.Color;
+
+						var stance = o == null || world.RenderPlayer == null ? PlayerRelationship.None : o.RelationshipWith(world.RenderPlayer);
+						labelText = viewport.FrozenActorTooltip.TooltipInfo.TooltipForPlayerStance(stance);
+						break;
+					}
 				}
 
 				if (viewport.ActorTooltipExtra != null)
@@ -106,8 +112,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				if (showOwner)
 				{
 					flagFaction = o.Faction.InternalName;
-					ownerName = o.PlayerName;
-					ownerColor = o.Color;
+					ownerName = o.ResolvedPlayerName;
 					widget.Bounds.Height = doubleHeight;
 					widget.Bounds.Width = Math.Max(widget.Bounds.Width,
 						owner.Bounds.X + ownerFont.Measure(ownerName).X + label.Bounds.X);

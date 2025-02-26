@@ -85,8 +85,7 @@ namespace OpenRA.Traits
 
 		public void AddOrUpdate(Player viewer, FrozenActor fa)
 		{
-			if (removeFrozenActors[viewer].Contains(fa))
-				removeFrozenActors[viewer].Remove(fa);
+			removeFrozenActors[viewer].Remove(fa);
 
 			addOrUpdateFrozenActors[viewer].Add(fa);
 		}
@@ -98,8 +97,7 @@ namespace OpenRA.Traits
 
 		public void AddOrUpdate(Actor a)
 		{
-			if (removeActors.Contains(a))
-				removeActors.Remove(a);
+			removeActors.Remove(a);
 
 			addOrUpdateActors.Add(a);
 		}
@@ -219,11 +217,7 @@ namespace OpenRA.Traits
 				var mouseBounds = a.MouseBounds(worldRenderer);
 				if (!mouseBounds.IsEmpty)
 				{
-					if (partitionedMouseActors.Contains(a))
-						partitionedMouseActors.Update(a, mouseBounds.BoundingRect);
-					else
-						partitionedMouseActors.Add(a, mouseBounds.BoundingRect);
-
+					partitionedMouseActors[a] = mouseBounds.BoundingRect;
 					partitionedMouseActorBounds[a] = new ActorBoundsPair(a, mouseBounds);
 				}
 				else
@@ -231,12 +225,7 @@ namespace OpenRA.Traits
 
 				var screenBounds = a.ScreenBounds(worldRenderer).Union();
 				if (!screenBounds.Size.IsEmpty)
-				{
-					if (partitionedRenderableActors.Contains(a))
-						partitionedRenderableActors.Update(a, screenBounds);
-					else
-						partitionedRenderableActors.Add(a, screenBounds);
-				}
+					partitionedRenderableActors[a] = screenBounds;
 				else
 					partitionedRenderableActors.Remove(a);
 			}
@@ -257,23 +246,13 @@ namespace OpenRA.Traits
 				{
 					var mouseBounds = fa.MouseBounds;
 					if (!mouseBounds.IsEmpty)
-					{
-						if (partitionedMouseFrozenActors[kv.Key].Contains(fa))
-							partitionedMouseFrozenActors[kv.Key].Update(fa, mouseBounds.BoundingRect);
-						else
-							partitionedMouseFrozenActors[kv.Key].Add(fa, mouseBounds.BoundingRect);
-					}
+						partitionedMouseFrozenActors[kv.Key][fa] = mouseBounds.BoundingRect;
 					else
 						partitionedMouseFrozenActors[kv.Key].Remove(fa);
 
 					var screenBounds = fa.ScreenBounds.Union();
 					if (!screenBounds.Size.IsEmpty)
-					{
-						if (partitionedRenderableFrozenActors[kv.Key].Contains(fa))
-							partitionedRenderableFrozenActors[kv.Key].Update(fa, screenBounds);
-						else
-							partitionedRenderableFrozenActors[kv.Key].Add(fa, screenBounds);
-					}
+						partitionedRenderableFrozenActors[kv.Key][fa] = screenBounds;
 					else
 						partitionedRenderableFrozenActors[kv.Key].Remove(fa);
 				}
@@ -295,16 +274,16 @@ namespace OpenRA.Traits
 
 		public IEnumerable<Rectangle> RenderBounds(Player viewer)
 		{
-			var bounds = partitionedRenderableActors.ItemBounds
-				.Concat(partitionedRenderableEffects.ItemBounds);
+			var bounds = partitionedRenderableActors.Values
+				.Concat(partitionedRenderableEffects.Values);
 
-			return viewer != null ? bounds.Concat(partitionedRenderableFrozenActors[viewer].ItemBounds) : bounds;
+			return viewer != null ? bounds.Concat(partitionedRenderableFrozenActors[viewer].Values) : bounds;
 		}
 
 		public IEnumerable<Polygon> MouseBounds(Player viewer)
 		{
 			var bounds = partitionedMouseActorBounds.Values.Select(a => a.Bounds);
-			return viewer != null ? bounds.Concat(partitionedMouseFrozenActors[viewer].Items.Select(fa => fa.MouseBounds)) : bounds;
+			return viewer != null ? bounds.Concat(partitionedMouseFrozenActors[viewer].Keys.Select(fa => fa.MouseBounds)) : bounds;
 		}
 	}
 }

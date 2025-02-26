@@ -44,6 +44,8 @@ namespace OpenRA.Graphics
 		readonly List<IFinalizedRenderable> preparedAnnotationRenderables = new();
 
 		readonly List<IRenderable> renderablesBuffer = new();
+		readonly IRenderer[] renderers;
+		readonly IRenderPostProcessPass[] postProcessPasses;
 
 		internal WorldRenderer(ModData modData, World world)
 		{
@@ -60,15 +62,29 @@ namespace OpenRA.Graphics
 			foreach (var pal in world.TraitDict.ActorsWithTrait<ILoadsPalettes>())
 				pal.Trait.LoadPalettes(this);
 
-			foreach (var p in world.Players)
-				UpdatePalettesForPlayer(p.InternalName, p.Color, false);
+			Player.SetupRelationshipColors(world.Players, world.LocalPlayer, this, true);
 
 			palette.Initialize();
 
 			TerrainLighting = world.WorldActor.TraitOrDefault<ITerrainLighting>();
+			renderers = world.WorldActor.TraitsImplementing<IRenderer>().ToArray();
 			terrainRenderer = world.WorldActor.TraitOrDefault<IRenderTerrain>();
 
-			debugVis = Exts.Lazy(() => world.WorldActor.TraitOrDefault<DebugVisualizations>());
+			debugVis = Exts.Lazy(world.WorldActor.TraitOrDefault<DebugVisualizations>);
+
+			postProcessPasses = world.WorldActor.TraitsImplementing<IRenderPostProcessPass>().ToArray();
+		}
+
+		public void BeginFrame()
+		{
+			foreach (var r in renderers)
+				r.BeginFrame();
+		}
+
+		public void EndFrame()
+		{
+			foreach (var r in renderers)
+				r.EndFrame();
 		}
 
 		public void UpdatePalettesForPlayer(string internalName, Color color, bool replaceExisting)
@@ -87,7 +103,7 @@ namespace OpenRA.Graphics
 		{
 			// HACK: This is working around the fact that palettes are defined on traits rather than sequences
 			// and can be removed once this has been fixed.
-			return name == null ? null : palettes.GetOrAdd(name, createPaletteReference);
+			return string.IsNullOrEmpty(name) ? null : palettes.GetOrAdd(name, createPaletteReference);
 		}
 
 		public void AddPalette(string name, ImmutablePalette pal, bool allowModifiers = false, bool allowOverwrite = false)
@@ -270,6 +286,8 @@ namespace OpenRA.Graphics
 			if (enableDepthBuffer)
 				Game.Renderer.ClearDepthBuffer();
 
+			ApplyPostProcessing(PostProcessPassType.AfterActors);
+
 			World.ApplyToActorsWithTrait<IRenderAboveWorld>((actor, trait) =>
 			{
 				if (actor.IsInWorld && !actor.Disposed)
@@ -278,6 +296,8 @@ namespace OpenRA.Graphics
 
 			if (enableDepthBuffer)
 				Game.Renderer.ClearDepthBuffer();
+
+			ApplyPostProcessing(PostProcessPassType.AfterWorld);
 
 			World.ApplyToActorsWithTrait<IRenderShroud>((actor, trait) => trait.RenderShroud(this));
 
@@ -292,7 +312,21 @@ namespace OpenRA.Graphics
 				foreach (var r in g)
 					r.Render(this);
 
+			ApplyPostProcessing(PostProcessPassType.AfterShroud);
+
 			Game.Renderer.Flush();
+		}
+
+		void ApplyPostProcessing(PostProcessPassType type)
+		{
+			foreach (var pass in postProcessPasses)
+			{
+				if (pass.Type != type || !pass.Enabled)
+					continue;
+
+				Game.Renderer.Flush();
+				pass.Draw(this);
+			}
 		}
 
 		public void DrawAnnotations()

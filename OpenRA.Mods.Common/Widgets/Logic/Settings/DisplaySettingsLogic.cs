@@ -11,6 +11,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Linq;
 using OpenRA.Graphics;
 using OpenRA.Mods.Common.Traits;
@@ -21,48 +23,50 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 {
 	public class DisplaySettingsLogic : ChromeLogic
 	{
-		[TranslationReference]
+		[FluentReference]
 		const string Close = "options-camera.close";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Medium = "options-camera.medium";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Far = "options-camera.far";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Furthest = "options-camera.furthest";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Windowed = "options-display-mode.windowed";
 
-		[TranslationReference]
+		[FluentReference]
 		const string LegacyFullscreen = "options-display-mode.legacy-fullscreen";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Fullscreen = "options-display-mode.fullscreen";
 
-		[TranslationReference("number")]
+		[FluentReference("number")]
 		const string Display = "label-video-display-index";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Standard = "options-status-bars.standard";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ShowOnDamage = "options-status-bars.show-on-damage";
 
-		[TranslationReference]
+		[FluentReference]
 		const string AlwaysShow = "options-status-bars.always-show";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Automatic = "options-target-lines.automatic";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Manual = "options-target-lines.manual";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Disabled = "options-target-lines.disabled";
 
+		[FluentReference("fps")]
+		const string FrameLimiter = "checkbox-frame-limiter";
 		static readonly int OriginalVideoDisplay;
 		static readonly WindowMode OriginalGraphicsMode;
 		static readonly int2 OriginalGraphicsWindowedSize;
@@ -94,23 +98,25 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		}
 
 		[ObjectCreator.UseCtor]
-		public DisplaySettingsLogic(Action<string, string, Func<Widget, Func<bool>>, Func<Widget, Action>> registerPanel, string panelID, string label, ModData modData, WorldRenderer worldRenderer)
+		public DisplaySettingsLogic(
+			Action<string, string, Func<Widget, Func<bool>>, Func<Widget, Action>> registerPanel,
+			string panelID, string label, ModData modData, WorldRenderer worldRenderer)
 		{
 			this.worldRenderer = worldRenderer;
 			this.modData = modData;
 			viewportSizes = modData.Manifest.Get<WorldViewportSizes>();
 
-			legacyFullscreen = TranslationProvider.GetString(LegacyFullscreen);
-			fullscreen = TranslationProvider.GetString(Fullscreen);
+			legacyFullscreen = FluentProvider.GetMessage(LegacyFullscreen);
+			fullscreen = FluentProvider.GetMessage(Fullscreen);
 
 			registerPanel(panelID, label, InitPanel, ResetPanel);
 
-			showOnDamage = TranslationProvider.GetString(ShowOnDamage);
-			alwaysShow = TranslationProvider.GetString(AlwaysShow);
+			showOnDamage = FluentProvider.GetMessage(ShowOnDamage);
+			alwaysShow = FluentProvider.GetMessage(AlwaysShow);
 
-			automatic = TranslationProvider.GetString(Automatic);
-			manual = TranslationProvider.GetString(Manual);
-			disabled = TranslationProvider.GetString(Disabled);
+			automatic = FluentProvider.GetMessage(Automatic);
+			manual = FluentProvider.GetMessage(Manual);
+			disabled = FluentProvider.GetMessage(Disabled);
 		}
 
 		public static string GetViewportSizeName(ModData modData, WorldViewport worldViewport)
@@ -118,13 +124,13 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			switch (worldViewport)
 			{
 				case WorldViewport.Close:
-					return TranslationProvider.GetString(Close);
+					return FluentProvider.GetMessage(Close);
 				case WorldViewport.Medium:
-					return TranslationProvider.GetString(Medium);
+					return FluentProvider.GetMessage(Medium);
 				case WorldViewport.Far:
-					return TranslationProvider.GetString(Far);
+					return FluentProvider.GetMessage(Far);
 				case WorldViewport.Native:
-					return TranslationProvider.GetString(Furthest);
+					return FluentProvider.GetMessage(Furthest);
 				default:
 					return "";
 			}
@@ -134,6 +140,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		{
 			var ds = Game.Settings.Graphics;
 			var gs = Game.Settings.Game;
+			var world = worldRenderer.World;
 			var scrollPanel = panel.Get<ScrollPanelWidget>("SETTINGS_SCROLLPANEL");
 
 			SettingsUtils.BindCheckboxPref(panel, "CURSORDOUBLE_CHECKBOX", ds, "CursorDouble");
@@ -142,6 +149,15 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			SettingsUtils.BindCheckboxPref(panel, "FRAME_LIMIT_GAMESPEED_CHECKBOX", ds, "CapFramerateToGameFps");
 			SettingsUtils.BindIntSliderPref(panel, "FRAME_LIMIT_SLIDER", ds, "MaxFramerate");
 			SettingsUtils.BindCheckboxPref(panel, "PLAYER_STANCE_COLORS_CHECKBOX", gs, "UsePlayerStanceColors");
+
+			var cb = panel.Get<CheckboxWidget>("PLAYER_STANCE_COLORS_CHECKBOX");
+			cb.IsChecked = () => gs.UsePlayerStanceColors;
+			cb.OnClick = () =>
+			{
+				gs.UsePlayerStanceColors = cb.IsChecked() ^ true;
+				Player.SetupRelationshipColors(world.Players, world.LocalPlayer, worldRenderer, false);
+			};
+
 			if (panel.GetOrNull<CheckboxWidget>("PAUSE_SHELLMAP_CHECKBOX") != null)
 				SettingsUtils.BindCheckboxPref(panel, "PAUSE_SHELLMAP_CHECKBOX", gs, "PauseShellmap");
 
@@ -150,12 +166,12 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var windowModeDropdown = panel.Get<DropDownButtonWidget>("MODE_DROPDOWN");
 			windowModeDropdown.OnMouseDown = _ => ShowWindowModeDropdown(windowModeDropdown, ds, scrollPanel);
 			windowModeDropdown.GetText = () => ds.Mode == WindowMode.Windowed
-				? TranslationProvider.GetString(Windowed)
+				? FluentProvider.GetMessage(Windowed)
 				: ds.Mode == WindowMode.Fullscreen ? legacyFullscreen : fullscreen;
 
 			var displaySelectionDropDown = panel.Get<DropDownButtonWidget>("DISPLAY_SELECTION_DROPDOWN");
 			displaySelectionDropDown.OnMouseDown = _ => ShowDisplaySelectionDropdown(displaySelectionDropDown, ds);
-			var displaySelectionLabel = new CachedTransform<int, string>(i => TranslationProvider.GetString(Display, Translation.Arguments("number", i + 1)));
+			var displaySelectionLabel = new CachedTransform<int, string>(i => FluentProvider.GetMessage(Display, "number", i + 1));
 			displaySelectionDropDown.GetText = () => displaySelectionLabel.Update(ds.VideoDisplay);
 			displaySelectionDropDown.IsDisabled = () => Game.Renderer.DisplayCount < 2;
 
@@ -169,7 +185,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var statusBarsDropDown = panel.Get<DropDownButtonWidget>("STATUS_BAR_DROPDOWN");
 			statusBarsDropDown.OnMouseDown = _ => ShowStatusBarsDropdown(statusBarsDropDown, gs);
 			statusBarsDropDown.GetText = () => gs.StatusBars == StatusBarsType.Standard
-				? TranslationProvider.GetString(Standard)
+				? FluentProvider.GetMessage(Standard)
 				: gs.StatusBars == StatusBarsType.DamageShow
 					? showOnDamage
 					: alwaysShow;
@@ -205,7 +221,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 			var minResolution = viewportSizes.MinEffectiveResolution;
 			var resolution = Game.Renderer.Resolution;
-			var disableUIScale = worldRenderer.World.Type != WorldType.Shellmap ||
+			var disableUIScale = world.Type != WorldType.Shellmap ||
 				resolution.Width * ds.UIScale < 1.25f * minResolution.Width ||
 				resolution.Height * ds.UIScale < 1.25f * minResolution.Height;
 
@@ -214,20 +230,19 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			panel.Get("DISPLAY_SELECTION_CONTAINER").IsVisible = () => ds.Mode != WindowMode.Windowed;
 			panel.Get("WINDOW_RESOLUTION_CONTAINER").IsVisible = () => ds.Mode == WindowMode.Windowed;
 			var windowWidth = panel.Get<TextFieldWidget>("WINDOW_WIDTH");
-			var origWidthText = windowWidth.Text = ds.WindowedSize.X.ToString();
+			var origWidthText = windowWidth.Text = ds.WindowedSize.X.ToString(NumberFormatInfo.CurrentInfo);
 
 			var windowHeight = panel.Get<TextFieldWidget>("WINDOW_HEIGHT");
-			var origHeightText = windowHeight.Text = ds.WindowedSize.Y.ToString();
-			windowHeight.Text = ds.WindowedSize.Y.ToString();
+			var origHeightText = windowHeight.Text = ds.WindowedSize.Y.ToString(NumberFormatInfo.CurrentInfo);
+			windowHeight.Text = ds.WindowedSize.Y.ToString(NumberFormatInfo.CurrentInfo);
 
-			var restartDesc = panel.Get("RESTART_REQUIRED_DESC");
+			var restartDesc = panel.Get("VIDEO_RESTART_REQUIRED_DESC");
 			restartDesc.IsVisible = () => ds.Mode != OriginalGraphicsMode || ds.VideoDisplay != OriginalVideoDisplay || ds.GLProfile != OriginalGLProfile ||
 				(ds.Mode == WindowMode.Windowed && (origWidthText != windowWidth.Text || origHeightText != windowHeight.Text));
 
 			var frameLimitGamespeedCheckbox = panel.Get<CheckboxWidget>("FRAME_LIMIT_GAMESPEED_CHECKBOX");
 			var frameLimitCheckbox = panel.Get<CheckboxWidget>("FRAME_LIMIT_CHECKBOX");
-			var frameLimitOrigLabel = frameLimitCheckbox.Text;
-			var frameLimitLabel = new CachedTransform<int, string>(fps => frameLimitOrigLabel + $" ({fps} FPS)");
+			var frameLimitLabel = new CachedTransform<int, string>(fps => FluentProvider.GetMessage(FrameLimiter, "fps", fps));
 			frameLimitCheckbox.GetText = () => frameLimitLabel.Update(ds.MaxFramerate);
 			frameLimitCheckbox.IsDisabled = () => ds.CapFramerateToGameFps;
 
@@ -238,7 +253,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 			var escPressed = false;
 			var nameTextfield = panel.Get<TextFieldWidget>("PLAYERNAME");
-			nameTextfield.IsDisabled = () => worldRenderer.World.Type != WorldType.Shellmap;
+			nameTextfield.IsDisabled = () => world.Type != WorldType.Shellmap;
 			nameTextfield.Text = Settings.SanitizedPlayerName(ps.Name);
 			nameTextfield.OnLoseFocus = () =>
 			{
@@ -270,7 +285,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var colorManager = modData.DefaultRules.Actors[SystemActors.World].TraitInfo<IColorPickerManagerInfo>();
 
 			var colorDropdown = panel.Get<DropDownButtonWidget>("PLAYERCOLOR");
-			colorDropdown.IsDisabled = () => worldRenderer.World.Type != WorldType.Shellmap;
+			colorDropdown.IsDisabled = () => world.Type != WorldType.Shellmap;
 			colorDropdown.OnMouseDown = _ => colorManager.ShowColorDropDown(colorDropdown, ps.Color, null, worldRenderer, color =>
 			{
 				ps.Color = color;
@@ -282,8 +297,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 			return () =>
 			{
-				Exts.TryParseIntegerInvariant(windowWidth.Text, out var x);
-				Exts.TryParseIntegerInvariant(windowHeight.Text, out var y);
+				int.TryParse(windowWidth.Text, NumberStyles.Integer, NumberFormatInfo.CurrentInfo, out var x);
+				int.TryParse(windowHeight.Text, NumberStyles.Integer, NumberFormatInfo.CurrentInfo, out var y);
 				ds.WindowedSize = new int2(x, y);
 				nameTextfield.YieldKeyboardFocus();
 
@@ -335,9 +350,9 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		{
 			var options = new Dictionary<string, WindowMode>()
 			{
-				{ TranslationProvider.GetString(Fullscreen), WindowMode.PseudoFullscreen },
-				{ TranslationProvider.GetString(LegacyFullscreen), WindowMode.Fullscreen },
-				{ TranslationProvider.GetString(Windowed), WindowMode.Windowed },
+				{ FluentProvider.GetMessage(Fullscreen), WindowMode.PseudoFullscreen },
+				{ FluentProvider.GetMessage(LegacyFullscreen), WindowMode.Fullscreen },
+				{ FluentProvider.GetMessage(Windowed), WindowMode.Windowed },
 			};
 
 			ScrollItemWidget SetupItem(string o, ScrollItemWidget itemTemplate)
@@ -384,9 +399,9 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		{
 			var options = new Dictionary<string, StatusBarsType>()
 			{
-				{ TranslationProvider.GetString(Standard), StatusBarsType.Standard },
-				{ TranslationProvider.GetString(ShowOnDamage), StatusBarsType.DamageShow },
-				{ TranslationProvider.GetString(AlwaysShow), StatusBarsType.AlwaysShow },
+				{ FluentProvider.GetMessage(Standard), StatusBarsType.Standard },
+				{ FluentProvider.GetMessage(ShowOnDamage), StatusBarsType.DamageShow },
+				{ FluentProvider.GetMessage(AlwaysShow), StatusBarsType.AlwaysShow },
 			};
 
 			ScrollItemWidget SetupItem(string o, ScrollItemWidget itemTemplate)
@@ -439,9 +454,9 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		{
 			var options = new Dictionary<string, TargetLinesType>()
 			{
-				{ TranslationProvider.GetString(Automatic), TargetLinesType.Automatic },
-				{ TranslationProvider.GetString(Manual), TargetLinesType.Manual },
-				{ TranslationProvider.GetString(Disabled), TargetLinesType.Disabled },
+				{ FluentProvider.GetMessage(Automatic), TargetLinesType.Automatic },
+				{ FluentProvider.GetMessage(Manual), TargetLinesType.Manual },
+				{ FluentProvider.GetMessage(Disabled), TargetLinesType.Disabled },
 			};
 
 			ScrollItemWidget SetupItem(string o, ScrollItemWidget itemTemplate)
@@ -497,31 +512,30 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				return;
 
 			var parentBounds = w.Parent == null
-				? new Rectangle(0, 0, Game.Renderer.Resolution.Width, Game.Renderer.Resolution.Height)
+				? new WidgetBounds(0, 0, Game.Renderer.Resolution.Width, Game.Renderer.Resolution.Height)
 				: w.Parent.Bounds;
 
 			var substitutions = new Dictionary<string, int>
 			{
-				{ "WINDOW_RIGHT", Game.Renderer.Resolution.Width },
-				{ "WINDOW_BOTTOM", Game.Renderer.Resolution.Height },
-				{ "PARENT_RIGHT", parentBounds.Width },
-				{ "PARENT_LEFT", parentBounds.Left },
-				{ "PARENT_TOP", parentBounds.Top },
-				{ "PARENT_BOTTOM", parentBounds.Height }
+				{ "WINDOW_WIDTH", Game.Renderer.Resolution.Width },
+				{ "WINDOW_HEIGHT", Game.Renderer.Resolution.Height },
+				{ "PARENT_WIDTH", parentBounds.Width },
+				{ "PARENT_HEIGHT", parentBounds.Height }
 			};
 
-			var width = w.Width.Evaluate(substitutions);
-			var height = w.Height.Evaluate(substitutions);
+			var readOnlySubstitutions = new ReadOnlyDictionary<string, int>(substitutions);
+			var width = w.Width?.Evaluate(readOnlySubstitutions) ?? 0;
+			var height = w.Height?.Evaluate(readOnlySubstitutions) ?? 0;
 
 			substitutions.Add("WIDTH", width);
 			substitutions.Add("HEIGHT", height);
 
 			if (insideScrollPanel)
-				w.Bounds = new Rectangle(w.Bounds.X, w.Bounds.Y, width, w.Bounds.Height);
+				w.Bounds = new WidgetBounds(w.Bounds.X, w.Bounds.Y, width, w.Bounds.Height);
 			else
-				w.Bounds = new Rectangle(
-					w.X.Evaluate(substitutions),
-					w.Y.Evaluate(substitutions),
+				w.Bounds = new WidgetBounds(
+					w.X?.Evaluate(readOnlySubstitutions) ?? 0,
+					w.Y?.Evaluate(readOnlySubstitutions) ?? 0,
 					width,
 					height);
 

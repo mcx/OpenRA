@@ -35,7 +35,7 @@ namespace OpenRA
 				// Check for column overflow
 				if (u > r.BottomRight.U)
 				{
-					v += 1;
+					v++;
 					u = r.TopLeft.U;
 
 					// Check for row overflow
@@ -53,8 +53,8 @@ namespace OpenRA
 			}
 
 			public MPos Current { get; private set; }
-			object IEnumerator.Current => Current;
-			public void Dispose() { }
+			readonly object IEnumerator.Current => Current;
+			public readonly void Dispose() { }
 		}
 
 		public MapCoordsRegion(MPos mapTopLeft, MPos mapBottomRight)

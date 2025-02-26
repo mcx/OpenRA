@@ -70,7 +70,7 @@ Tick = function()
 	end
 
 	if Atreides.HasNoRequiredUnits() and not Harkonnen.IsObjectiveCompleted(KillAtreides) then
-		Media.DisplayMessage(UserInterface.Translate("atreides-annihilated"), Mentat)
+		Media.DisplayMessage(UserInterface.GetFluentMessage("atreides-annihilated"), Mentat)
 		Harkonnen.MarkCompletedObjective(KillAtreides)
 	end
 end
@@ -81,7 +81,7 @@ WorldLoaded = function()
 
 	InitObjectives(Harkonnen)
 	KillHarkonnen = AddPrimaryObjective(Atreides, "")
-	KillAtreides = AddSecondaryObjective(Harkonnen, "destroy-atreides-forces")
+	KillAtreides = AddPrimaryObjective(Harkonnen, "destroy-atreides-forces")
 
 	Camera.Position = HConyard.CenterPosition
 
