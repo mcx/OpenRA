@@ -27,6 +27,7 @@ namespace OpenRA.Mods.Common.Traits
 		public readonly string SpeechNotification = null;
 
 		[Desc("The text notification to display when the player is low power.")]
+		[FluentReference(optional: true)]
 		public readonly string TextNotification = null;
 
 		public override object Create(ActorInitializer init) { return new PowerManager(init.Self, this); }
@@ -41,16 +42,12 @@ namespace OpenRA.Mods.Common.Traits
 		readonly Dictionary<Actor, int> powerDrain = new();
 
 		[Sync]
-		int totalProvided;
-
-		public int PowerProvided => totalProvided;
+		public int PowerProvided { get; private set; }
 
 		[Sync]
-		int totalDrained;
+		public int PowerDrained { get; private set; }
 
-		public int PowerDrained => totalDrained;
-
-		public int ExcessPower => totalProvided - totalDrained;
+		public int ExcessPower => PowerProvided - PowerDrained;
 
 		public int PowerOutageRemainingTicks { get; private set; }
 		public int PowerOutageTotalTicks { get; private set; }
@@ -68,6 +65,7 @@ namespace OpenRA.Mods.Common.Traits
 
 			devMode = self.Trait<DeveloperMode>();
 			wasHackEnabled = devMode.UnlimitedPower;
+			PlayLowPowerNotification = info.AdviceInterval > 0;
 		}
 
 		void INotifyCreated.Created(Actor self)
@@ -94,14 +92,14 @@ namespace OpenRA.Mods.Common.Traits
 				return;
 
 			if (old > 0)
-				totalProvided -= old;
+				PowerProvided -= old;
 			else if (old < 0)
-				totalDrained += old;
+				PowerDrained += old;
 
 			if (amount > 0)
-				totalProvided += amount;
+				PowerProvided += amount;
 			else if (amount < 0)
-				totalDrained -= amount;
+				PowerDrained -= amount;
 
 			UpdatePowerState();
 		}
@@ -120,9 +118,9 @@ namespace OpenRA.Mods.Common.Traits
 				return;
 
 			if (amount > 0)
-				totalProvided -= amount;
+				PowerProvided -= amount;
 			else if (amount < 0)
-				totalDrained += amount;
+				PowerDrained += amount;
 
 			UpdatePowerState();
 		}
@@ -145,17 +143,17 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			if (wasHackEnabled != devMode.UnlimitedPower)
 			{
-				totalProvided = 0;
-				totalDrained = 0;
+				PowerProvided = 0;
+				PowerDrained = 0;
 
 				if (!devMode.UnlimitedPower)
 				{
 					foreach (var kv in powerDrain)
 					{
 						if (kv.Value > 0)
-							totalProvided += kv.Value;
+							PowerProvided += kv.Value;
 						else if (kv.Value < 0)
-							totalDrained -= kv.Value;
+							PowerDrained -= kv.Value;
 					}
 				}
 
@@ -166,7 +164,7 @@ namespace OpenRA.Mods.Common.Traits
 			if (PlayLowPowerNotification && isLowPower && Game.RunTime > lastPowerAdviceTime + info.AdviceInterval)
 			{
 				Game.Sound.PlayNotification(self.World.Map.Rules, self.Owner, "Speech", info.SpeechNotification, self.Owner.Faction.InternalName);
-				TextNotificationsManager.AddTransientLine(info.TextNotification, self.Owner);
+				TextNotificationsManager.AddTransientLine(self.Owner, info.TextNotification);
 
 				lastPowerAdviceTime = Game.RunTime;
 			}

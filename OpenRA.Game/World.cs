@@ -49,7 +49,6 @@ namespace OpenRA
 
 		public readonly MersenneTwister SharedRandom;
 		public readonly MersenneTwister LocalRandom;
-		public readonly IModelCache ModelCache;
 		public LongBitSet<PlayerBitMask> AllPlayersMask = default;
 		public readonly LongBitSet<PlayerBitMask> NoPlayersMask = default;
 
@@ -214,8 +213,6 @@ namespace OpenRA
 			SharedRandom = new MersenneTwister(orderManager.LobbyInfo.GlobalSettings.RandomSeed);
 			LocalRandom = new MersenneTwister();
 
-			ModelCache = modData.ModelSequenceLoader.CacheModels(Map, modData, Map.Rules.ModelSequences);
-
 			var worldActorType = type == WorldType.Editor ? SystemActors.EditorWorld : SystemActors.World;
 			WorldActor = CreateActor(worldActorType.ToString(), new TypeDictionary());
 			ActorMap = WorldActor.Trait<IActorMap>();
@@ -299,14 +296,27 @@ namespace OpenRA
 					using (new PerfTimer(iwl.GetType().Name + ".WorldLoaded"))
 						iwl.WorldLoaded(this, wr);
 
-			gameInfo.StartTimeUtc = DateTime.UtcNow;
 			foreach (var player in Players)
 				gameInfo.AddPlayer(player, OrderManager.LobbyInfo);
 
 			gameInfo.DisabledSpawnPoints = OrderManager.LobbyInfo.DisabledSpawnPoints;
 
+			gameInfo.StartTimeUtc = DateTime.UtcNow;
+
 			if (OrderManager.Connection is NetworkConnection nc && nc.Recorder != null)
 				nc.Recorder.Metadata = new ReplayMetadata(gameInfo);
+		}
+
+		public void PostLoadComplete(WorldRenderer wr)
+		{
+			foreach (var iwl in WorldActor.TraitsImplementing<IPostWorldLoaded>())
+				using (new PerfTimer(iwl.GetType().Name + ".PostWorldLoaded"))
+					iwl.PostWorldLoaded(this, wr);
+
+			foreach (var p in Players)
+				foreach (var iwl in p.PlayerActor.TraitsImplementing<IPostWorldLoaded>())
+					using (new PerfTimer(iwl.GetType().Name + ".PostWorldLoaded"))
+						iwl.PostWorldLoaded(this, wr);
 		}
 
 		public void SetWorldOwner(Player p)
@@ -423,7 +433,7 @@ namespace OpenRA
 					if (tp.Actor == null)
 						break;
 
-					tp.Trait.ResolveTraitData(tp.Actor, kv.Value.Nodes);
+					tp.Trait.ResolveTraitData(tp.Actor, kv.Value);
 				}
 
 				gameSaveTraitData.Clear();
@@ -573,7 +583,7 @@ namespace OpenRA
 				var data = tp.Trait.IssueTraitData(tp.Actor);
 				if (data != null)
 				{
-					var yaml = new List<MiniYamlNode>() { new MiniYamlNode(i.ToString(), new MiniYaml("", data)) };
+					var yaml = new List<MiniYamlNode>() { new(i.ToStringInvariant(), new MiniYaml("", data)) };
 					IssueOrder(Order.FromTargetString("GameSaveTraitData", yaml.WriteToString(), true));
 				}
 
@@ -597,8 +607,6 @@ namespace OpenRA
 			Game.Sound.StopVideo();
 			if (IsLoadingGameSave)
 				Game.Sound.DisableAllSounds = false;
-
-			ModelCache.Dispose();
 
 			// Dispose newer actors first, and the world actor last
 			foreach (var a in actors.Values.Reverse())

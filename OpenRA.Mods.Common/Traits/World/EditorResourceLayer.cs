@@ -28,7 +28,7 @@ namespace OpenRA.Mods.Common.Traits
 		protected static object LoadResourceTypes(MiniYaml yaml)
 		{
 			var ret = new Dictionary<string, ResourceLayerInfo.ResourceTypeInfo>();
-			var resources = yaml.Nodes.FirstOrDefault(n => n.Key == "ResourceTypes");
+			var resources = yaml.NodeWithKeyOrDefault("ResourceTypes");
 			if (resources != null)
 				foreach (var r in resources.Value.Nodes)
 					ret[r.Key] = new ResourceLayerInfo.ResourceTypeInfo(r.Value);
@@ -180,6 +180,24 @@ namespace OpenRA.Mods.Common.Traits
 
 			if (newResourceType != null && newDensity > 0 && resourceValues.TryGetValue(newResourceType, out var newResourceValue))
 				NetWorth += (newDensity + 1) * newResourceValue;
+		}
+
+		public int CalculateRegionValue(CellRegion sourceRegion)
+		{
+			var resourceValueInRegion = 0;
+			foreach (var cell in sourceRegion.CellCoords)
+			{
+				var mcell = cell.ToMPos(Map);
+				if (Map.Resources.Contains(mcell) && Map.Resources[mcell].Type != 0)
+				{
+					resourceValueInRegion++;
+					var rcell = Map.Resources[mcell];
+					if (ResourceTypesByIndex.TryGetValue(rcell.Type, out var resourceType) && resourceValues.TryGetValue(resourceType, out var resourceValuePerUnit))
+						resourceValueInRegion += Tiles[mcell].Density * resourceValuePerUnit;
+				}
+			}
+
+			return resourceValueInRegion;
 		}
 
 		protected virtual int CalculateCellDensity(ResourceLayerContents contents, CPos c)

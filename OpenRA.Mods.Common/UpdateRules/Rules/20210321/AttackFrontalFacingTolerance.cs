@@ -17,9 +17,11 @@ namespace OpenRA.Mods.Common.UpdateRules.Rules
 	{
 		public override string Name => "Adds the old default value for AttackFrontal's FacingTolerance.";
 
-		public override string Description => "The tolerance for the attack angle was defined twice on AttackFrontal. This override has to be defined in the rules now.";
+		public override string Description =>
+			"The tolerance for the attack angle was defined twice on AttackFrontal. " +
+			"This override has to be defined in the rules now.";
 
-		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNode actorNode)
+		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNodeBuilder actorNode)
 		{
 			foreach (var attackFrontal in actorNode.ChildrenMatching("AttackFrontal", includeRemovals: false))
 			{
@@ -27,7 +29,7 @@ namespace OpenRA.Mods.Common.UpdateRules.Rules
 				if (facingTolerance != null)
 					continue;
 
-				var facingToleranceNode = new MiniYamlNode("FacingTolerance", FieldSaver.FormatValue(WAngle.Zero));
+				var facingToleranceNode = new MiniYamlNodeBuilder("FacingTolerance", FieldSaver.FormatValue(WAngle.Zero));
 				attackFrontal.AddNode(facingToleranceNode);
 			}
 

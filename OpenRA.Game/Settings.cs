@@ -14,7 +14,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using OpenRA.Primitives;
-using OpenRA.Traits;
 
 namespace OpenRA
 {
@@ -102,6 +101,9 @@ namespace OpenRA
 		[Desc("For dedicated servers only, treat maps that fail the lint checks as invalid.")]
 		public bool EnableLintChecks = true;
 
+		[Desc("For dedicated servers only, a comma separated list of map uids that are allowed to be used.")]
+		public string[] MapPool = Array.Empty<string>();
+
 		[Desc("Delay in milliseconds before newly joined players can send chat messages.")]
 		public int FloodLimitJoinCooldown = 5000;
 
@@ -113,6 +115,15 @@ namespace OpenRA
 
 		[Desc("Delay in milliseconds before players can send chat messages after flood was detected.")]
 		public int FloodLimitCooldown = 15000;
+
+		[Desc("Can players vote to kick other players?")]
+		public bool EnableVoteKick = true;
+
+		[Desc("After how much time in milliseconds should the vote kick fail after idling?")]
+		public int VoteKickTimer = 30000;
+
+		[Desc("If a vote kick was unsuccessful for how long should the player who started the vote not be able to start new votes?")]
+		public int VoteKickerCooldown = 120000;
 
 		public ServerSettings Clone()
 		{
@@ -201,9 +212,6 @@ namespace OpenRA
 		[Desc("Disable operating-system provided cursor rendering.")]
 		public bool DisableHardwareCursors = false;
 
-		[Desc("Disable legacy OpenGL 2.1 support.")]
-		public bool DisableLegacyGL = true;
-
 		[Desc("Display index to use in a multi-monitor fullscreen setup.")]
 		public int VideoDisplay = 0;
 
@@ -241,7 +249,14 @@ namespace OpenRA
 		public Color Color = Color.FromArgb(200, 32, 32);
 		public string LastServer = "localhost:1234";
 		public Color[] CustomColors = Array.Empty<Color>();
-		public string Language = "en";
+	}
+
+	public class SinglePlayerGameSettings
+	{
+		[Desc("Sets the Auto-save frequency, in seconds")]
+		public int AutoSaveInterval = 0;
+		[Desc("Sets the AutoSave number of max files to bes saved on the file-system")]
+		public int AutoSaveMaxFileCount = 10;
 	}
 
 	public class GameSettings
@@ -301,8 +316,8 @@ namespace OpenRA
 		public readonly GraphicSettings Graphics = new();
 		public readonly ServerSettings Server = new();
 		public readonly DebugSettings Debug = new();
+		public readonly SinglePlayerGameSettings SinglePlayerSettings = new();
 		internal Dictionary<string, Hotkey> Keys = new();
-
 		public readonly Dictionary<string, object> Sections;
 
 		// A direct clone of the file loaded from disk.
@@ -321,6 +336,7 @@ namespace OpenRA
 				{ "Graphics", Graphics },
 				{ "Server", Server },
 				{ "Debug", Debug },
+				{ "SinglePlayerSettings", SinglePlayerSettings },
 			};
 
 			// Override fieldloader to ignore invalid entries
@@ -361,13 +377,14 @@ namespace OpenRA
 
 		public void Save()
 		{
+			var yamlCacheBuilder = yamlCache.ConvertAll(n => new MiniYamlNodeBuilder(n));
 			foreach (var kv in Sections)
 			{
-				var sectionYaml = yamlCache.FirstOrDefault(x => x.Key == kv.Key);
+				var sectionYaml = yamlCacheBuilder.FirstOrDefault(x => x.Key == kv.Key);
 				if (sectionYaml == null)
 				{
-					sectionYaml = new MiniYamlNode(kv.Key, new MiniYaml(""));
-					yamlCache.Add(sectionYaml);
+					sectionYaml = new MiniYamlNodeBuilder(kv.Key, new MiniYamlBuilder(""));
+					yamlCacheBuilder.Add(sectionYaml);
 				}
 
 				var defaultValues = Activator.CreateInstance(kv.Value.GetType());
@@ -384,27 +401,29 @@ namespace OpenRA
 					else
 					{
 						// Update or add the custom value
-						var fieldYaml = sectionYaml.Value.Nodes.FirstOrDefault(n => n.Key == fli.YamlName);
+						var fieldYaml = sectionYaml.Value.NodeWithKeyOrDefault(fli.YamlName);
 						if (fieldYaml != null)
 							fieldYaml.Value.Value = serialized;
 						else
-							sectionYaml.Value.Nodes.Add(new MiniYamlNode(fli.YamlName, new MiniYaml(serialized)));
+							sectionYaml.Value.Nodes.Add(new MiniYamlNodeBuilder(fli.YamlName, new MiniYamlBuilder(serialized)));
 					}
 				}
 			}
 
-			var keysYaml = yamlCache.FirstOrDefault(x => x.Key == "Keys");
+			var keysYaml = yamlCacheBuilder.FirstOrDefault(x => x.Key == "Keys");
 			if (keysYaml == null)
 			{
-				keysYaml = new MiniYamlNode("Keys", new MiniYaml(""));
-				yamlCache.Add(keysYaml);
+				keysYaml = new MiniYamlNodeBuilder("Keys", new MiniYamlBuilder(""));
+				yamlCacheBuilder.Add(keysYaml);
 			}
 
 			keysYaml.Value.Nodes.Clear();
 			foreach (var kv in Keys)
-				keysYaml.Value.Nodes.Add(new MiniYamlNode(kv.Key, FieldSaver.FormatValue(kv.Value)));
+				keysYaml.Value.Nodes.Add(new MiniYamlNodeBuilder(kv.Key, FieldSaver.FormatValue(kv.Value)));
 
-			yamlCache.WriteToFile(settingsFile);
+			yamlCacheBuilder.WriteToFile(settingsFile);
+			yamlCache.Clear();
+			yamlCache.AddRange(yamlCacheBuilder.Select(n => n.Build()));
 		}
 
 		static string SanitizedName(string dirty)
@@ -415,7 +434,7 @@ namespace OpenRA
 			var clean = dirty;
 
 			// reserved characters for MiniYAML and JSON
-			var disallowedChars = new char[] { '#', '@', ':', '\n', '\t', '[', ']', '{', '}', '"', '`' };
+			var disallowedChars = new char[] { '#', '@', ':', '\n', '\t', '[', ']', '{', '}', '<', '>', '"', '`' };
 			foreach (var disallowedChar in disallowedChars)
 				clean = clean.Replace(disallowedChar.ToString(), string.Empty);
 
@@ -434,11 +453,10 @@ namespace OpenRA
 		public static string SanitizedPlayerName(string dirty)
 		{
 			var forbiddenNames = new string[] { "Open", "Closed" };
-			var botNames = OpenRA.Game.ModData.DefaultRules.Actors[SystemActors.Player].TraitInfos<IBotInfo>().Select(t => t.Name);
 
 			var clean = SanitizedName(dirty);
 
-			if (string.IsNullOrWhiteSpace(clean) || forbiddenNames.Contains(clean) || botNames.Contains(clean))
+			if (string.IsNullOrWhiteSpace(clean) || forbiddenNames.Contains(clean))
 				clean = new PlayerSettings().Name;
 
 			// avoid UI glitches

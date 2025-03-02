@@ -12,6 +12,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using OpenRA.Mods.Common.Widgets;
+using OpenRA.Primitives;
 using OpenRA.Traits;
 using OpenRA.Widgets;
 
@@ -21,11 +22,11 @@ namespace OpenRA.Mods.Common.Traits
 	[Desc("This trait allows setting a time limit on matches. Attach this to the World actor.")]
 	public class TimeLimitManagerInfo : TraitInfo, ILobbyOptions, IRulesetLoaded
 	{
-		[TranslationReference]
+		[FluentReference]
 		[Desc("Label that will be shown for the time limit option in the lobby.")]
 		public readonly string TimeLimitLabel = "dropdown-time-limit.label";
 
-		[TranslationReference]
+		[FluentReference]
 		[Desc("Tooltip description that will be shown for the time limit option in the lobby.")]
 		public readonly string TimeLimitDescription = "dropdown-time-limit.description";
 
@@ -76,24 +77,24 @@ namespace OpenRA.Mods.Common.Traits
 				throw new YamlException("TimeLimitDefault must be a value from TimeLimitOptions");
 		}
 
-		[TranslationReference]
+		[FluentReference]
 		const string NoTimeLimit = "options-time-limit.no-limit";
 
-		[TranslationReference("minutes")]
+		[FluentReference("minutes")]
 		const string TimeLimitOption = "options-time-limit.options";
 
 		IEnumerable<LobbyOption> ILobbyOptions.LobbyOptions(MapPreview map)
 		{
-			var timelimits = TimeLimitOptions.ToDictionary(m => m.ToString(), m =>
+			var timelimits = TimeLimitOptions.ToDictionary(m => m.ToStringInvariant(), m =>
 			{
 				if (m == 0)
-					return TranslationProvider.GetString(NoTimeLimit);
+					return FluentProvider.GetMessage(NoTimeLimit);
 				else
-					return TranslationProvider.GetString(TimeLimitOption, Translation.Arguments("minutes", m));
+					return FluentProvider.GetMessage(TimeLimitOption, "minutes", m);
 			});
 
 			yield return new LobbyOption(map, "timelimit", TimeLimitLabel, TimeLimitDescription, TimeLimitDropdownVisible, TimeLimitDisplayOrder,
-				timelimits, TimeLimitDefault.ToString(), TimeLimitLocked);
+				timelimits, TimeLimitDefault.ToStringInvariant(), TimeLimitLocked);
 		}
 
 		public override object Create(ActorInitializer init) { return new TimeLimitManager(init.Self, this); }
@@ -101,7 +102,7 @@ namespace OpenRA.Mods.Common.Traits
 
 	public class TimeLimitManager : INotifyTimeLimit, ITick, IWorldLoaded
 	{
-		[TranslationReference]
+		[FluentReference]
 		const string TimeLimitExpired = "notification-time-limit-expired";
 
 		readonly TimeLimitManagerInfo info;
@@ -119,7 +120,7 @@ namespace OpenRA.Mods.Common.Traits
 			Notification = info.Notification;
 			ticksPerSecond = 1000 / self.World.Timestep;
 
-			var tl = self.World.LobbyInfo.GlobalSettings.OptionOrDefault("timelimit", info.TimeLimitDefault.ToString());
+			var tl = self.World.LobbyInfo.GlobalSettings.OptionOrDefault("timelimit", info.TimeLimitDefault.ToStringInvariant());
 			if (!int.TryParse(tl, out TimeLimit))
 				TimeLimit = info.TimeLimitDefault;
 
@@ -136,7 +137,7 @@ namespace OpenRA.Mods.Common.Traits
 			if (countdownLabel != null)
 			{
 				countdown = new CachedTransform<int, string>(t =>
-					string.Format(info.CountdownText, WidgetUtils.FormatTime(t, w.Timestep)));
+					info.CountdownText.FormatCurrent(WidgetUtils.FormatTime(t, w.Timestep)));
 				countdownLabel.GetText = () => TimeLimit > 0 ? countdown.Update(ticksRemaining) : "";
 			}
 		}
@@ -167,7 +168,7 @@ namespace OpenRA.Mods.Common.Traits
 			{
 				if (ticksRemaining == m * 60 * ticksPerSecond)
 				{
-					TextNotificationsManager.AddSystemLine(string.Format(Notification, m, m > 1 ? "s" : null));
+					TextNotificationsManager.AddSystemLine(Notification.FormatCurrent(m, m > 1 ? "s" : null));
 
 					var faction = self.World.LocalPlayer?.Faction.InternalName;
 					Game.Sound.PlayNotification(self.World.Map.Rules, self.World.LocalPlayer, "Speech", info.TimeLimitWarnings[m], faction);
@@ -181,7 +182,7 @@ namespace OpenRA.Mods.Common.Traits
 				countdownLabel.GetText = () => null;
 
 			if (!info.SkipTimerExpiredNotification)
-				TextNotificationsManager.AddSystemLine(TranslationProvider.GetString(TimeLimitExpired));
+				TextNotificationsManager.AddSystemLine(FluentProvider.GetMessage(TimeLimitExpired));
 		}
 	}
 }

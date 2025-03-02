@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using OpenRA.Graphics;
 using OpenRA.Mods.Common.Lint;
@@ -74,9 +75,11 @@ namespace OpenRA.Mods.Common.Widgets
 
 		public readonly bool DrawTime = true;
 
-		public readonly string ReadyText = "";
+		[FluentReference]
+		public string ReadyText = "";
 
-		public readonly string HoldText = "";
+		[FluentReference]
+		public string HoldText = "";
 
 		public readonly string InfiniteSymbol = "\u221E";
 
@@ -131,12 +134,12 @@ namespace OpenRA.Mods.Common.Widgets
 		public static IEnumerable<string> LinterHotkeyNames(MiniYamlNode widgetNode, Action<string> emitError)
 		{
 			var prefix = "";
-			var prefixNode = widgetNode.Value.Nodes.FirstOrDefault(n => n.Key == "HotkeyPrefix");
+			var prefixNode = widgetNode.Value.NodeWithKeyOrDefault("HotkeyPrefix");
 			if (prefixNode != null)
 				prefix = prefixNode.Value.Value;
 
 			var count = 0;
-			var countNode = widgetNode.Value.Nodes.FirstOrDefault(n => n.Key == "HotkeyCount");
+			var countNode = widgetNode.Value.NodeWithKeyOrDefault("HotkeyCount");
 			if (countNode != null)
 				count = FieldLoader.GetValue<int>("HotkeyCount", countNode.Value.Value);
 
@@ -146,7 +149,7 @@ namespace OpenRA.Mods.Common.Widgets
 			if (string.IsNullOrEmpty(prefix))
 				emitError($"{widgetNode.Location} must define HotkeyPrefix if HotkeyCount > 0.");
 
-			return Exts.MakeArray(count, i => prefix + (i + 1).ToString("D2"));
+			return Exts.MakeArray(count, i => prefix + (i + 1).ToStringInvariant("D2"));
 		}
 
 		[ObjectCreator.UseCtor]
@@ -169,13 +172,15 @@ namespace OpenRA.Mods.Common.Widgets
 			cantBuild = new Animation(World, NotBuildableAnimation);
 			cantBuild.PlayFetchIndex(NotBuildableSequence, () => 0);
 			hotkeys = Exts.MakeArray(HotkeyCount,
-				i => modData.Hotkeys[HotkeyPrefix + (i + 1).ToString("D2")]);
+				i => modData.Hotkeys[HotkeyPrefix + (i + 1).ToStringInvariant("D2")]);
 
 			overlayFont = Game.Renderer.Fonts[OverlayFont];
 			Game.Renderer.Fonts.TryGetValue(SymbolsFont, out symbolFont);
 
 			iconOffset = 0.5f * IconSize.ToFloat2() + IconSpriteOffset;
+			HoldText = FluentProvider.GetMessage(HoldText);
 			holdOffset = iconOffset - overlayFont.Measure(HoldText) / 2;
+			ReadyText = FluentProvider.GetMessage(ReadyText);
 			readyOffset = iconOffset - overlayFont.Measure(ReadyText) / 2;
 
 			if (ChromeMetrics.TryGet("InfiniteOffset", out infiniteOffset))
@@ -287,13 +292,16 @@ namespace OpenRA.Mods.Common.Widgets
 			return HandleEvent(icon, mi.Button, mi.Modifiers);
 		}
 
-		protected bool PickUpCompletedBuildingIcon(ProductionIcon icon, ProductionItem item)
+		protected bool PickUpCompletedBuildingIcon(ProductionItem item)
 		{
-			var actor = World.Map.Rules.Actors[icon.Name];
+			if (item == null)
+				return false;
 
-			if (item != null && item.Done && actor.HasTraitInfo<BuildingInfo>())
+			var actor = World.Map.Rules.Actors[item.Item];
+
+			if (item.Done && actor.HasTraitInfo<BuildingInfo>())
 			{
-				World.OrderGenerator = new PlaceBuildingOrderGenerator(CurrentQueue, icon.Name, worldRenderer);
+				World.OrderGenerator = new PlaceBuildingOrderGenerator(CurrentQueue, item.Item, worldRenderer);
 				return true;
 			}
 
@@ -302,17 +310,12 @@ namespace OpenRA.Mods.Common.Widgets
 
 		public void PickUpCompletedBuilding()
 		{
-			foreach (var icon in icons.Values)
-			{
-				var item = icon.Queued.FirstOrDefault();
-				if (PickUpCompletedBuildingIcon(icon, item))
-					break;
-			}
+			PickUpCompletedBuildingIcon(CurrentQueue.CurrentItem());
 		}
 
 		bool HandleLeftClick(ProductionItem item, ProductionIcon icon, int handleCount, Modifiers modifiers)
 		{
-			if (PickUpCompletedBuildingIcon(icon, item))
+			if (PickUpCompletedBuildingIcon(item))
 			{
 				Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Sounds", ClickSound, null);
 				return true;
@@ -323,7 +326,7 @@ namespace OpenRA.Mods.Common.Widgets
 				// Resume a paused item
 				Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Sounds", ClickSound, null);
 				Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Speech", CurrentQueue.Info.QueuedAudio, World.LocalPlayer.Faction.InternalName);
-				TextNotificationsManager.AddTransientLine(CurrentQueue.Info.QueuedTextNotification, World.LocalPlayer);
+				TextNotificationsManager.AddTransientLine(World.LocalPlayer, CurrentQueue.Info.QueuedTextNotification);
 
 				World.IssueOrder(Order.PauseProduction(CurrentQueue.Actor, icon.Name, false));
 				return true;
@@ -333,14 +336,18 @@ namespace OpenRA.Mods.Common.Widgets
 
 			if (buildable != null)
 			{
-				// Queue a new item
+				if (CurrentQueue.Info.PayUpFront &&
+					currentQueue.GetProductionCost(buildable) > CurrentQueue.Actor.Owner.PlayerActor.Trait<PlayerResources>().GetCashAndResources())
+					return false;
 				Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Sounds", ClickSound, null);
+
+				// Queue a new item
 				var canQueue = CurrentQueue.CanQueue(buildable, out var notification, out var textNotification);
 
 				if (!CurrentQueue.AllQueued().Any())
 				{
 					Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Speech", notification, World.LocalPlayer.Faction.InternalName);
-					TextNotificationsManager.AddTransientLine(textNotification, World.LocalPlayer);
+					TextNotificationsManager.AddTransientLine(World.LocalPlayer, textNotification);
 				}
 
 				if (canQueue)
@@ -361,11 +368,11 @@ namespace OpenRA.Mods.Common.Widgets
 
 			Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Sounds", ClickSound, null);
 
-			if (CurrentQueue.Info.DisallowPaused || item.Paused || item.Done || item.TotalCost == item.RemainingCost)
+			if (CurrentQueue.Info.DisallowPaused || item.Paused || item.Done || item.TotalCost == item.RemainingCost || !item.Started)
 			{
 				// Instantly cancel items that haven't started, have finished, or if the queue doesn't support pausing
 				Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Speech", CurrentQueue.Info.CancelledAudio, World.LocalPlayer.Faction.InternalName);
-				TextNotificationsManager.AddTransientLine(CurrentQueue.Info.CancelledTextNotification, World.LocalPlayer);
+				TextNotificationsManager.AddTransientLine(World.LocalPlayer, CurrentQueue.Info.CancelledTextNotification);
 
 				World.IssueOrder(Order.CancelProduction(CurrentQueue.Actor, icon.Name, handleCount));
 			}
@@ -373,7 +380,7 @@ namespace OpenRA.Mods.Common.Widgets
 			{
 				// Pause an existing item
 				Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Speech", CurrentQueue.Info.OnHoldAudio, World.LocalPlayer.Faction.InternalName);
-				TextNotificationsManager.AddTransientLine(CurrentQueue.Info.OnHoldTextNotification, World.LocalPlayer);
+				TextNotificationsManager.AddTransientLine(World.LocalPlayer, CurrentQueue.Info.OnHoldTextNotification);
 
 				World.IssueOrder(Order.PauseProduction(CurrentQueue.Actor, icon.Name, true));
 			}
@@ -389,7 +396,7 @@ namespace OpenRA.Mods.Common.Widgets
 			// Directly cancel, skipping "on-hold"
 			Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Sounds", ClickSound, null);
 			Game.Sound.PlayNotification(World.Map.Rules, World.LocalPlayer, "Speech", CurrentQueue.Info.CancelledAudio, World.LocalPlayer.Faction.InternalName);
-			TextNotificationsManager.AddTransientLine(CurrentQueue.Info.CancelledTextNotification, World.LocalPlayer);
+			TextNotificationsManager.AddTransientLine(World.LocalPlayer, CurrentQueue.Info.CancelledTextNotification);
 
 			World.IssueOrder(Order.CancelProduction(CurrentQueue.Actor, icon.Name, handleCount));
 
@@ -442,7 +449,7 @@ namespace OpenRA.Mods.Common.Widgets
 			if (facility == null || facility.OccupiesSpace == null)
 				return true;
 
-			if (selection.Actors.Count() == 1 && selection.Contains(facility))
+			if (selection.Actors.Count == 1 && selection.Contains(facility))
 				viewport.Center(selection.Actors);
 			else
 				selection.Combine(World, new[] { facility }, false, true);
@@ -584,14 +591,14 @@ namespace OpenRA.Mods.Common.Widgets
 						var pos = QueuedOffset;
 						if (QueuedTextAlign != TextAlign.Left)
 						{
-							var size = overlayFont.Measure(total.ToString());
+							var size = overlayFont.Measure(total.ToString(NumberFormatInfo.CurrentInfo));
 
 							pos = QueuedTextAlign == TextAlign.Center ?
 								new float2(QueuedOffset.X - size.X / 2, QueuedOffset.Y) :
 								new float2(QueuedOffset.X - size.X, QueuedOffset.Y);
 						}
 
-						overlayFont.DrawTextWithContrast(total.ToString(),
+						overlayFont.DrawTextWithContrast(total.ToString(NumberFormatInfo.CurrentInfo),
 							icon.Pos + pos,
 							TextColor, Color.Black, 1);
 					}

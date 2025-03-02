@@ -38,7 +38,7 @@ namespace OpenRA.Mods.Common.Traits
 		public override object Create(ActorInitializer init) { return new ExternalCondition(this); }
 	}
 
-	public class ExternalCondition : ITick, INotifyCreated
+	public class ExternalCondition : ITick, INotifyCreated, INotifyOwnerChanged
 	{
 		readonly struct TimedToken
 		{
@@ -75,11 +75,13 @@ namespace OpenRA.Mods.Common.Traits
 
 			// Timed tokens do not count towards the source cap: the condition with the shortest
 			// remaining duration can always be revoked to make room.
-			if (Info.SourceCap > 0)
-				if (permanentTokens.TryGetValue(source, out var permanentTokensForSource) && permanentTokensForSource.Count >= Info.SourceCap)
-					return false;
+			if (Info.SourceCap > 0 &&
+				permanentTokens.TryGetValue(source, out var permanentTokensForSource) &&
+				permanentTokensForSource.Count >= Info.SourceCap)
+				return false;
 
-			if (Info.TotalCap > 0 && permanentTokens.Values.Sum(t => t.Count) >= Info.TotalCap)
+			if (Info.TotalCap > 0 &&
+				permanentTokens.Values.Sum(t => t.Count) >= Info.TotalCap)
 				return false;
 
 			return true;
@@ -221,6 +223,12 @@ namespace OpenRA.Mods.Common.Traits
 		}
 
 		bool Notifies(IConditionTimerWatcher watcher) { return watcher.Condition == Info.Condition; }
+
+		void INotifyOwnerChanged.OnOwnerChanged(Actor self, Player oldOwner, Player newOwner)
+		{
+			foreach (var pair in self.World.ActorsWithTrait<INotifyProximityOwnerChanged>())
+				pair.Trait.OnProximityOwnerChanged(self, oldOwner, newOwner);
+		}
 
 		void INotifyCreated.Created(Actor self)
 		{

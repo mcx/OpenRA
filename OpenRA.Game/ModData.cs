@@ -33,9 +33,10 @@ namespace OpenRA
 		public readonly ISpriteLoader[] SpriteLoaders;
 		public readonly ITerrainLoader TerrainLoader;
 		public readonly ISpriteSequenceLoader SpriteSequenceLoader;
-		public readonly IModelSequenceLoader ModelSequenceLoader;
 		public readonly IVideoLoader[] VideoLoaders;
 		public readonly HotkeyManager Hotkeys;
+		public readonly IFileSystemLoader FileSystemLoader;
+
 		public ILoadScreen LoadScreen { get; }
 		public CursorProvider CursorProvider { get; private set; }
 		public FS ModFiles;
@@ -55,10 +56,16 @@ namespace OpenRA
 			Manifest = new Manifest(mod.Id, mod.Package);
 			ObjectCreator = new ObjectCreator(Manifest, mods);
 			PackageLoaders = ObjectCreator.GetLoaders<IPackageLoader>(Manifest.PackageFormats, "package");
-
 			ModFiles = new FS(mod.Id, mods, PackageLoaders);
-			ModFiles.LoadFromManifest(Manifest);
+
+			FileSystemLoader = ObjectCreator.GetLoader<IFileSystemLoader>(Manifest.FileSystem.Value, "filesystem");
+			FieldLoader.Load(FileSystemLoader, Manifest.FileSystem);
+			FileSystemLoader.Mount(ModFiles, ObjectCreator);
+			ModFiles.TrimExcess();
+
 			Manifest.LoadCustomData(ObjectCreator);
+
+			FluentProvider.Initialize(this, DefaultFileSystem);
 
 			if (useLoadScreen)
 			{
@@ -89,15 +96,6 @@ namespace OpenRA
 				throw new InvalidOperationException($"Unable to find a sequence loader for type '{sequenceFormat.Type}'.");
 
 			SpriteSequenceLoader = (ISpriteSequenceLoader)sequenceCtor.Invoke(new[] { this });
-
-			var modelFormat = Manifest.Get<ModelSequenceFormat>();
-			var modelLoader = ObjectCreator.FindType(modelFormat.Type + "Loader");
-			var modelCtor = modelLoader?.GetConstructor(new[] { typeof(ModData) });
-			if (modelLoader == null || !modelLoader.GetInterfaces().Contains(typeof(IModelSequenceLoader)) || modelCtor == null)
-				throw new InvalidOperationException($"Unable to find a model loader for type '{modelFormat.Type}'.");
-
-			ModelSequenceLoader = (IModelSequenceLoader)modelCtor.Invoke(new[] { this });
-			ModelSequenceLoader.OnMissingModelError = s => Log.Write("debug", s);
 
 			Hotkeys = new HotkeyManager(ModFiles, Game.Settings.Keys, Manifest);
 
@@ -134,7 +132,7 @@ namespace OpenRA
 			// horribly when you use ModData in unexpected ways.
 			ChromeMetrics.Initialize(this);
 			ChromeProvider.Initialize(this);
-			TranslationProvider.Initialize(this, fileSystem);
+			FluentProvider.Initialize(this, fileSystem);
 
 			Game.Sound.Initialize(SoundLoaders, fileSystem);
 
@@ -168,7 +166,8 @@ namespace OpenRA
 
 		public List<MiniYamlNode>[] GetRulesYaml()
 		{
-			return Manifest.Rules.Select(s => MiniYaml.FromStream(DefaultFileSystem.Open(s), s)).ToArray();
+			var stringPool = new HashSet<string>(); // Reuse common strings in YAML
+			return Manifest.Rules.Select(s => MiniYaml.FromStream(DefaultFileSystem.Open(s), s, stringPool: stringPool)).ToArray();
 		}
 
 		public void Dispose()
@@ -198,5 +197,10 @@ namespace OpenRA
 
 		/// <summary>Called when the engine expects to connect to a server/replay or load the shellmap.</summary>
 		void StartGame(Arguments args);
+	}
+
+	public interface IFileSystemLoader
+	{
+		void Mount(FS fileSystem, ObjectCreator objectCreator);
 	}
 }

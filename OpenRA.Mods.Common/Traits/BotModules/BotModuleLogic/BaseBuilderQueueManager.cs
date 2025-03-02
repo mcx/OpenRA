@@ -18,7 +18,8 @@ namespace OpenRA.Mods.Common.Traits
 {
 	sealed class BaseBuilderQueueManager
 	{
-		readonly string category;
+		public readonly string Category;
+		public int WaitTicks;
 
 		readonly BaseBuilderBotModule baseBuilder;
 		readonly World world;
@@ -27,7 +28,6 @@ namespace OpenRA.Mods.Common.Traits
 		readonly PlayerResources playerResources;
 		readonly IResourceLayer resourceLayer;
 
-		int waitTicks;
 		Actor[] playerBuildings;
 		int failCount;
 		int failRetryTicks;
@@ -35,6 +35,8 @@ namespace OpenRA.Mods.Common.Traits
 		int cachedBases;
 		int cachedBuildings;
 		int minimumExcessPower;
+
+		bool itemQueuedThisTick = false;
 
 		WaterCheck waterState = WaterCheck.NotChecked;
 
@@ -47,14 +49,14 @@ namespace OpenRA.Mods.Common.Traits
 			playerPower = pm;
 			playerResources = pr;
 			resourceLayer = rl;
-			this.category = category;
+			Category = category;
 			failRetryTicks = baseBuilder.Info.StructureProductionResumeDelay;
 			minimumExcessPower = baseBuilder.Info.MinimumExcessPower;
 			if (baseBuilder.Info.NavalProductionTypes.Count == 0)
 				waterState = WaterCheck.DontCheck;
 		}
 
-		public void Tick(IBot bot)
+		public void Tick(IBot bot, ILookup<string, ProductionQueue> queuesByCategory)
 		{
 			// If failed to place something N consecutive times, wait M ticks until resuming building production
 			if (failCount >= baseBuilder.Info.MaximumFailedPlacementAttempts && --failRetryTicks <= 0)
@@ -94,23 +96,31 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			// Only update once per second or so
-			if (--waitTicks > 0)
+			if (WaitTicks > 0)
 				return;
 
 			playerBuildings = world.ActorsHavingTrait<Building>().Where(a => a.Owner == player).ToArray();
-			var excessPowerBonus = baseBuilder.Info.ExcessPowerIncrement * (playerBuildings.Length / baseBuilder.Info.ExcessPowerIncreaseThreshold.Clamp(1, int.MaxValue));
-			minimumExcessPower = (baseBuilder.Info.MinimumExcessPower + excessPowerBonus).Clamp(baseBuilder.Info.MinimumExcessPower, baseBuilder.Info.MaximumExcessPower);
+			var excessPowerBonus =
+				baseBuilder.Info.ExcessPowerIncrement *
+				(playerBuildings.Length / baseBuilder.Info.ExcessPowerIncreaseThreshold.Clamp(1, int.MaxValue));
+			minimumExcessPower =
+				(baseBuilder.Info.MinimumExcessPower + excessPowerBonus)
+					.Clamp(baseBuilder.Info.MinimumExcessPower, baseBuilder.Info.MaximumExcessPower);
 
+			// PERF: Queue only one actor at a time per category
+			itemQueuedThisTick = false;
 			var active = false;
-			foreach (var queue in AIUtils.FindQueues(player, category))
+			foreach (var queue in queuesByCategory[Category])
+			{
 				if (TickQueue(bot, queue))
 					active = true;
+			}
 
 			// Add a random factor so not every AI produces at the same tick early in the game.
 			// Minimum should not be negative as delays in HackyAI could be zero.
 			var randomFactor = world.LocalRandom.Next(0, baseBuilder.Info.StructureProductionRandomBonusDelay);
 
-			waitTicks = active ? baseBuilder.Info.StructureProductionActiveDelay + randomFactor
+			WaitTicks = active ? baseBuilder.Info.StructureProductionActiveDelay + randomFactor
 				: baseBuilder.Info.StructureProductionInactiveDelay + randomFactor;
 		}
 
@@ -121,11 +131,16 @@ namespace OpenRA.Mods.Common.Traits
 			// Waiting to build something
 			if (currentBuilding == null && failCount < baseBuilder.Info.MaximumFailedPlacementAttempts)
 			{
+				// PERF: We shouldn't be queueing new units when we're low on cash
+				if (playerResources.GetCashAndResources() < baseBuilder.Info.ProductionMinCashRequirement || itemQueuedThisTick)
+					return false;
+
 				var item = ChooseBuildingToBuild(queue);
 				if (item == null)
 					return false;
 
 				bot.QueueOrder(Order.StartProduction(queue.Actor, item.Name, 1));
+				itemQueuedThisTick = true;
 			}
 			else if (currentBuilding != null && currentBuilding.Done)
 			{
@@ -209,10 +224,10 @@ namespace OpenRA.Mods.Common.Traits
 				if (!actors.Contains(actor.Name))
 					return false;
 
-				if (!baseBuilder.Info.BuildingLimits.ContainsKey(actor.Name))
+				if (!baseBuilder.Info.BuildingLimits.TryGetValue(actor.Name, out var limit))
 					return true;
 
-				return playerBuildings.Count(a => a.Info.Name == actor.Name) < baseBuilder.Info.BuildingLimits[actor.Name];
+				return playerBuildings.Count(a => a.Info.Name == actor.Name) < limit;
 			});
 
 			if (orderBy != null)
@@ -229,24 +244,22 @@ namespace OpenRA.Mods.Common.Traits
 
 		ActorInfo ChooseBuildingToBuild(ProductionQueue queue)
 		{
-			var buildableThings = queue.BuildableItems();
+			var buildableThings = queue.BuildableItems().ToList();
 
 			// This gets used quite a bit, so let's cache it here
 			var power = GetProducibleBuilding(baseBuilder.Info.PowerTypes, buildableThings,
 				a => a.TraitInfos<PowerInfo>().Where(i => i.EnabledByDefault).Sum(p => p.Amount));
 
 			// First priority is to get out of a low power situation
-			if (playerPower != null && playerPower.ExcessPower < minimumExcessPower)
+			if (playerPower != null && playerPower.ExcessPower < minimumExcessPower &&
+				power != null && power.TraitInfos<PowerInfo>().Where(i => i.EnabledByDefault).Sum(p => p.Amount) > 0)
 			{
-				if (power != null && power.TraitInfos<PowerInfo>().Where(i => i.EnabledByDefault).Sum(p => p.Amount) > 0)
-				{
-					AIUtils.BotDebug("{0} decided to build {1}: Priority override (low power)", queue.Actor.Owner, power.Name);
-					return power;
-				}
+				AIUtils.BotDebug("{0} decided to build {1}: Priority override (low power)", queue.Actor.Owner, power.Name);
+				return power;
 			}
 
 			// Next is to build up a strong economy
-			if (!baseBuilder.HasAdequateRefineryCount)
+			if (!baseBuilder.HasAdequateRefineryCount())
 			{
 				var refinery = GetProducibleBuilding(baseBuilder.Info.RefineryTypes, buildableThings);
 				if (refinery != null && HasSufficientPowerForActor(refinery))
@@ -263,7 +276,7 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			// Make sure that we can spend as fast as we are earning
-			if (baseBuilder.Info.NewProductionCashThreshold > 0 && playerResources.Resources > baseBuilder.Info.NewProductionCashThreshold)
+			if (baseBuilder.Info.NewProductionCashThreshold > 0 && playerResources.GetCashAndResources() > baseBuilder.Info.NewProductionCashThreshold)
 			{
 				var production = GetProducibleBuilding(baseBuilder.Info.ProductionTypes, buildableThings);
 				if (production != null && HasSufficientPowerForActor(production))
@@ -281,7 +294,7 @@ namespace OpenRA.Mods.Common.Traits
 
 			// Only consider building this if there is enough water inside the base perimeter and there are close enough adjacent buildings
 			if (waterState == WaterCheck.EnoughWater && baseBuilder.Info.NewProductionCashThreshold > 0
-				&& playerResources.Resources > baseBuilder.Info.NewProductionCashThreshold
+				&& playerResources.GetCashAndResources() > baseBuilder.Info.NewProductionCashThreshold
 				&& AIUtils.IsAreaAvailable<GivesBuildableArea>(world, player, world.Map, baseBuilder.Info.CheckForWaterRadius, baseBuilder.Info.WaterTerrainTypes))
 			{
 				var navalproduction = GetProducibleBuilding(baseBuilder.Info.NavalProductionTypes, buildableThings);
@@ -335,7 +348,9 @@ namespace OpenRA.Mods.Common.Traits
 				var buildingVariantInfo = actorInfo.TraitInfoOrDefault<PlaceBuildingVariantsInfo>();
 				var variants = buildingVariantInfo?.Actors ?? Array.Empty<string>();
 
-				var count = playerBuildings.Count(a => a.Info.Name == name || variants.Contains(a.Info.Name));
+				var count = playerBuildings.Count(a =>
+					a.Info.Name == name || variants.Contains(a.Info.Name)) +
+					(baseBuilder.BuildingsBeingProduced.TryGetValue(name, out var num) ? num : 0);
 
 				// Do we want to build this structure?
 				if (count * 100 > frac.Value * playerBuildings.Length)
@@ -468,8 +483,9 @@ namespace OpenRA.Mods.Common.Traits
 				case BuildingType.Defense:
 
 					// Build near the closest enemy structure
-					var closestEnemy = world.ActorsHavingTrait<Building>().Where(a => !a.Disposed && player.RelationshipWith(a.Owner) == PlayerRelationship.Enemy)
-						.ClosestTo(world.Map.CenterOfCell(baseBuilder.DefenseCenter));
+					var closestEnemy = world.ActorsHavingTrait<Building>()
+						.Where(a => !a.Disposed && player.RelationshipWith(a.Owner) == PlayerRelationship.Enemy)
+						.ClosestToIgnoringPath(world.Map.CenterOfCell(baseBuilder.DefenseCenter));
 
 					var targetCell = closestEnemy != null ? closestEnemy.Location : baseCenter;
 

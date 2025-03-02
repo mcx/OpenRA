@@ -57,7 +57,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 					.SelectMany(t => t.Value.RestrictedPlayerColors)
 					.Distinct()
 					.ToList();
-				var playerColors = Enumerable.Empty<Color>();
+				var playerColors = Array.Empty<Color>();
 				randomButton.OnClick = () =>
 				{
 					var randomColor = colorManager.RandomValidColor(world.LocalRandom, terrainColors, playerColors);
@@ -97,15 +97,12 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var palettePresetRows = 2;
 			var paletteCustomRows = 1;
 
-			if (logicArgs.TryGetValue("PaletteColumns", out var yaml))
-				if (!int.TryParse(yaml.Value, out paletteCols))
-					throw new YamlException($"Invalid value for PaletteColumns: {yaml.Value}");
-			if (logicArgs.TryGetValue("PalettePresetRows", out yaml))
-				if (!int.TryParse(yaml.Value, out palettePresetRows))
-					throw new YamlException($"Invalid value for PalettePresetRows: {yaml.Value}");
-			if (logicArgs.TryGetValue("PaletteCustomRows", out yaml))
-				if (!int.TryParse(yaml.Value, out paletteCustomRows))
-					throw new YamlException($"Invalid value for PaletteCustomRows: {yaml.Value}");
+			if (logicArgs.TryGetValue("PaletteColumns", out var yaml) && !int.TryParse(yaml.Value, out paletteCols))
+				throw new YamlException($"Invalid value for PaletteColumns: {yaml.Value}");
+			if (logicArgs.TryGetValue("PalettePresetRows", out yaml) && !int.TryParse(yaml.Value, out palettePresetRows))
+				throw new YamlException($"Invalid value for PalettePresetRows: {yaml.Value}");
+			if (logicArgs.TryGetValue("PaletteCustomRows", out yaml) && !int.TryParse(yaml.Value, out paletteCustomRows))
+				throw new YamlException($"Invalid value for PaletteCustomRows: {yaml.Value}");
 
 			var presetColors = colorManager.PresetColors;
 			for (var j = 0; j < palettePresetRows; j++)
@@ -118,7 +115,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 					var color = presetColors[colorIndex];
 
-					var newSwatch = (ColorBlockWidget)presetColorTemplate.Clone();
+					var newSwatch = presetColorTemplate.Clone();
 					newSwatch.GetColor = () => color;
 					newSwatch.IsVisible = () => true;
 					newSwatch.Bounds.X = i * newSwatch.Bounds.Width;
@@ -139,8 +136,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				{
 					var colorIndex = j * paletteCols + i;
 
-					var newSwatch = (ColorBlockWidget)customColorTemplate.Clone();
-					var getColor = new CachedTransform<Color, Color>(c => colorManager.MakeValid(c, world.LocalRandom, Enumerable.Empty<Color>(), Enumerable.Empty<Color>()));
+					var newSwatch = customColorTemplate.Clone();
+					var getColor = new CachedTransform<Color, Color>(c => colorManager.MakeValid(c, world.LocalRandom, Array.Empty<Color>(), Array.Empty<Color>()));
 
 					newSwatch.GetColor = () => getColor.Update(Game.Settings.Player.CustomColors[colorIndex]);
 					newSwatch.IsVisible = () => Game.Settings.Player.CustomColors.Length > colorIndex;

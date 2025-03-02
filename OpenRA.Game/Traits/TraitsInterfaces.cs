@@ -173,7 +173,31 @@ namespace OpenRA.Traits
 	}
 
 	[RequireExplicitImplementation]
-	public interface IStoreResources { int Capacity { get; } }
+	public interface IStoresResourcesInfo : ITraitInfoInterface
+	{
+		string[] ResourceTypes { get; }
+	}
+
+	public interface IStoresResources
+	{
+		bool HasType(string resourceType);
+
+		/// <summary>The amount of resources that can be stored.</summary>
+		int Capacity { get; }
+
+		/// <summary>Stored resources.</summary>
+		/// <remarks>Dictionary key refers to resourceType, value refers to resource amount.</remarks>
+		IReadOnlyDictionary<string, int> Contents { get; }
+
+		/// <summary>A performance cheap method of getting the total sum of contents.</summary>
+		int ContentsSum { get; }
+
+		/// <summary>Returns the amount of <paramref name="value"/> that was not added.</summary>
+		int AddResource(string resourceType, int value);
+
+		/// <summary>Returns the amount of <paramref name="value"/> that was not removed.</summary>
+		int RemoveResource(string resourceType, int value);
+	}
 
 	public interface IEffectiveOwner
 	{
@@ -272,6 +296,9 @@ namespace OpenRA.Traits
 		int2 GetDecorationOrigin(Actor self, WorldRenderer wr, string pos, int2 margin);
 	}
 
+	public interface IEditorSelectionLayer : ITraitInfoInterface { }
+	public interface IEditorPasteLayer : ITraitInfoInterface { }
+
 	public interface IMapPreviewSignatureInfo : ITraitInfoInterface
 	{
 		void PopulateMapPreviewSignatureCells(Map map, ActorInfo ai, ActorReference s, List<(MPos Uv, Color Color)> destinationBuffer);
@@ -342,6 +369,7 @@ namespace OpenRA.Traits
 	public interface INotifySelection { void SelectionChanged(); }
 
 	public interface IWorldLoaded { void WorldLoaded(World w, WorldRenderer wr); }
+	public interface IPostWorldLoaded { void PostWorldLoaded(World w, WorldRenderer wr); }
 	public interface INotifyGameLoading { void GameLoading(World w); }
 	public interface INotifyGameLoaded { void GameLoaded(World w); }
 	public interface INotifyGameSaved { void GameSaved(World w); }
@@ -349,7 +377,7 @@ namespace OpenRA.Traits
 	public interface IGameSaveTraitData
 	{
 		List<MiniYamlNode> IssueTraitData(Actor self);
-		void ResolveTraitData(Actor self, List<MiniYamlNode> data);
+		void ResolveTraitData(Actor self, MiniYaml data);
 	}
 
 	[RequireExplicitImplementation]
@@ -435,6 +463,16 @@ namespace OpenRA.Traits
 		bool SpatiallyPartitionable { get; }
 	}
 
+	public enum PostProcessPassType { AfterShroud, AfterWorld, AfterActors }
+
+	[RequireExplicitImplementation]
+	public interface IRenderPostProcessPass
+	{
+		PostProcessPassType Type { get; }
+		bool Enabled { get; }
+		void Draw(WorldRenderer wr);
+	}
+
 	[Flags]
 	public enum SelectionPriorityModifiers
 	{
@@ -454,7 +492,7 @@ namespace OpenRA.Traits
 	public interface ISelection
 	{
 		int Hash { get; }
-		IEnumerable<Actor> Actors { get; }
+		IReadOnlyCollection<Actor> Actors { get; }
 
 		void Add(Actor a);
 		void Remove(Actor a);
@@ -548,11 +586,11 @@ namespace OpenRA.Traits
 			IReadOnlyDictionary<string, string> values, string defaultValue, bool locked)
 		{
 			Id = id;
-			Name = map.GetLocalisedString(name);
-			Description = map.GetLocalisedString(description);
+			Name = map.GetMessage(name);
+			Description = description != null ? map.GetMessage(description).Replace(@"\n", "\n") : null;
 			IsVisible = visible;
 			DisplayOrder = displayorder;
-			Values = values.ToDictionary(v => v.Key, v => map.GetLocalisedString(v.Value));
+			Values = values.ToDictionary(v => v.Key, v => map.GetMessage(v.Value));
 			DefaultValue = defaultValue;
 			IsLocked = locked;
 		}
@@ -610,5 +648,15 @@ namespace OpenRA.Traits
 	public interface INotifyPlayerDisconnected
 	{
 		void PlayerDisconnected(Actor self, Player p);
+	}
+
+	// Type tag for crush class bits
+	public class CrushClass { }
+
+	[RequireExplicitImplementation]
+	public interface ICrushable
+	{
+		bool CrushableBy(Actor self, Actor crusher, BitSet<CrushClass> crushClasses);
+		LongBitSet<PlayerBitMask> CrushableBy(Actor self, BitSet<CrushClass> crushClasses);
 	}
 }

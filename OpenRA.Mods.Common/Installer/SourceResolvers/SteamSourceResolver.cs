@@ -23,14 +23,14 @@ namespace OpenRA.Mods.Common.Installer
 	{
 		public string FindSourcePath(ModContent.ModSource modSource)
 		{
-			modSource.Type.ToDictionary().TryGetValue("AppId", out var appId);
+			var appId = modSource.Type.NodeWithKeyOrDefault("AppId");
 
 			if (appId == null)
 				return null;
 
 			foreach (var steamDirectory in SteamDirectory())
 			{
-				var manifestPath = Path.Combine(steamDirectory, "steamapps", $"appmanifest_{appId.Value}.acf");
+				var manifestPath = Path.Combine(steamDirectory, "steamapps", $"appmanifest_{appId.Value.Value}.acf");
 
 				if (!File.Exists(manifestPath))
 					continue;
@@ -85,16 +85,29 @@ namespace OpenRA.Mods.Common.Installer
 				}
 
 				case PlatformType.OSX:
-					candidatePaths.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", "Steam"));
+					candidatePaths.Add(Path.Combine(
+						Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+						"Library",
+						"Application Support",
+						"Steam"));
 
 					break;
 
 				case PlatformType.Linux:
 					// Direct distro install
-					candidatePaths.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".steam", "root"));
+					candidatePaths.Add(Path.Combine(
+						Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+						".steam",
+						"root"));
 
 					// Flatpak installed via Flathub
-					candidatePaths.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".var", "app", "com.valvesoftware.Steam", ".steam", "root"));
+					candidatePaths.Add(Path.Combine(
+						Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+						".var",
+						"app",
+						"com.valvesoftware.Steam",
+						".steam",
+						"root"));
 
 					break;
 			}
@@ -109,8 +122,13 @@ namespace OpenRA.Mods.Common.Installer
 					continue;
 
 				foreach (var e in ParseLibraryManifest(libraryFoldersPath).Where(e => e.Item1 == "path"))
-					yield return e.Item2;
+					yield return Unescape(e.Item2);
 			}
+		}
+
+		static string Unescape(string path)
+		{
+			return path.Replace(@"\\", @"\");
 		}
 
 		static Dictionary<string, string> ParseGameManifest(string path)

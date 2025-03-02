@@ -578,7 +578,7 @@ Actors:
 	Actor174: gun
 		Location: 51,41
 		Owner: Greece
-	Radar: dome
+	GreeceRadar: dome
 		Location: 34,37
 		Owner: Greece
 	Actor176: agun
@@ -1069,4 +1069,4 @@ Actors:
 
 Rules: ra|rules/campaign-rules.yaml, ra|rules/campaign-tooltips.yaml, ra|rules/campaign-palettes.yaml, rules.yaml
 
-Translations: ra|languages/lua/en.ftl, ra|languages/difficulties/en.ftl
+FluentMessages: ra|fluent/lua.ftl, ra|fluent/campaign.ftl

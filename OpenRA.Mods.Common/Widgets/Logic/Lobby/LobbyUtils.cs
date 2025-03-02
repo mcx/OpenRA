@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using OpenRA.Graphics;
 using OpenRA.Mods.Common.Traits;
@@ -23,19 +24,19 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 {
 	public static class LobbyUtils
 	{
-		[TranslationReference]
+		[FluentReference]
 		const string Open = "options-lobby-slot.open";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Closed = "options-lobby-slot.closed";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Bots = "options-lobby-slot.bots";
 
-		[TranslationReference]
+		[FluentReference]
 		const string BotsDisabled = "options-lobby-slot.bots-disabled";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Slot = "options-lobby-slot.slot";
 
 		sealed class SlotDropDownOption
@@ -55,15 +56,15 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		public static void ShowSlotDropDown(DropDownButtonWidget dropdown, Session.Slot slot,
 			Session.Client client, OrderManager orderManager, MapPreview map, ModData modData)
 		{
-			var open = TranslationProvider.GetString(Open);
-			var closed = TranslationProvider.GetString(Closed);
+			var open = FluentProvider.GetMessage(Open);
+			var closed = FluentProvider.GetMessage(Closed);
 			var options = new Dictionary<string, IEnumerable<SlotDropDownOption>>
 			{
 				{
-					TranslationProvider.GetString(Slot), new List<SlotDropDownOption>
+					FluentProvider.GetMessage(Slot), new List<SlotDropDownOption>
 					{
-						new SlotDropDownOption(open, "slot_open " + slot.PlayerReference, () => !slot.Closed && client == null),
-						new SlotDropDownOption(closed, "slot_close " + slot.PlayerReference, () => slot.Closed)
+						new(open, "slot_open " + slot.PlayerReference, () => !slot.Closed && client == null),
+						new(closed, "slot_close " + slot.PlayerReference, () => slot.Closed)
 					}
 				}
 			};
@@ -74,13 +75,13 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				foreach (var b in map.PlayerActorInfo.TraitInfos<IBotInfo>())
 				{
 					var botController = orderManager.LobbyInfo.Clients.FirstOrDefault(c => c.IsAdmin);
-					bots.Add(new SlotDropDownOption(b.Name,
+					bots.Add(new SlotDropDownOption(FluentProvider.GetMessage(b.Name),
 						$"slot_bot {slot.PlayerReference} {botController.Index} {b.Type}",
 						() => client != null && client.Bot == b.Type));
 				}
 			}
 
-			options.Add(bots.Count > 0 ? TranslationProvider.GetString(Bots) : TranslationProvider.GetString(BotsDisabled), bots);
+			options.Add(bots.Count > 0 ? FluentProvider.GetMessage(Bots) : FluentProvider.GetMessage(BotsDisabled), bots);
 
 			ScrollItemWidget SetupItem(SlotDropDownOption o, ScrollItemWidget itemTemplate)
 			{
@@ -112,7 +113,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 			var options = new List<DropDownOption>
 			{
-				new DropDownOption
+				new()
 				{
 					Title = "Kick",
 					OnClick = onClick
@@ -156,7 +157,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				var item = ScrollItemWidget.Setup(itemTemplate,
 					() => client.Team == ii,
 					() => orderManager.IssueOrder(Order.Command($"team {client.Index} {ii}")));
-				item.Get<LabelWidget>("LABEL").GetText = () => ii == 0 ? "-" : ii.ToString();
+				item.Get<LabelWidget>("LABEL").GetText = () => ii == 0 ? "-" : ii.ToString(NumberFormatInfo.CurrentInfo);
 				return item;
 			}
 
@@ -199,7 +200,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		}
 
 		/// <summary>Splits a string into two parts on the first instance of a given token.</summary>
-		static (string First, string Second) SplitOnFirstToken(string input, string token = "\\n")
+		public static (string First, string Second) SplitOnFirstToken(string input, string token = "\n")
 		{
 			if (string.IsNullOrEmpty(input))
 				return (null, null);
@@ -221,14 +222,15 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				var faction = factions[factionId];
 
 				var label = item.Get<LabelWidget>("LABEL");
-				var labelText = WidgetUtils.TruncateText(faction.Name, label.Bounds.Width, Game.Renderer.Fonts[label.Font]);
+				var labelText = WidgetUtils.TruncateText(FluentProvider.GetMessage(faction.Name), label.Bounds.Width, Game.Renderer.Fonts[label.Font]);
 				label.GetText = () => labelText;
 
 				var flag = item.Get<ImageWidget>("FLAG");
 				flag.GetImageCollection = () => "flags";
 				flag.GetImageName = () => factionId;
 
-				var (text, desc) = SplitOnFirstToken(faction.Description);
+				var description = faction.Description != null ? FluentProvider.GetMessage(faction.Description) : null;
+				var (text, desc) = SplitOnFirstToken(description);
 				item.GetTooltipText = () => text;
 				item.GetTooltipDesc = () => desc;
 
@@ -236,7 +238,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			}
 
 			var options = factions.Where(f => f.Value.Selectable).GroupBy(f => f.Value.Side)
-				.ToDictionary(g => g.Key ?? "", g => g.Select(f => f.Key));
+				.ToDictionary(g => g.Key != null ? FluentProvider.GetMessage(g.Key) : "", g => g.Select(f => FluentProvider.GetMessage(f.Key)));
 
 			dropdown.ShowDropDown("FACTION_DROPDOWN_TEMPLATE", 154, options, SetupItem);
 		}
@@ -282,7 +284,9 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 		static void SetSpawnPoint(OrderManager orderManager, Session.Client playerToMove, int selectedSpawnPoint)
 		{
-			var owned = orderManager.LobbyInfo.Clients.Any(c => c.SpawnPoint == selectedSpawnPoint) || orderManager.LobbyInfo.DisabledSpawnPoints.Contains(selectedSpawnPoint);
+			var owned =
+				orderManager.LobbyInfo.Clients.Any(c => c.SpawnPoint == selectedSpawnPoint) ||
+				orderManager.LobbyInfo.DisabledSpawnPoints.Contains(selectedSpawnPoint);
 			if (selectedSpawnPoint == 0 || !owned)
 				orderManager.IssueOrder(Order.Command($"spawn {(playerToMove ?? orderManager.LocalClient).Index} {selectedSpawnPoint}"));
 		}
@@ -350,27 +354,32 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 		public static void SetupProfileWidget(Widget parent, Session.Client c, OrderManager orderManager, WorldRenderer worldRenderer)
 		{
-			var visible = c != null && c.Bot == null;
 			var profile = parent.GetOrNull<ImageWidget>("PROFILE");
 			if (profile != null)
 			{
-				var imageName = (c != null && c.IsAdmin ? "admin-" : "player-")
-					+ (c.Fingerprint != null ? "registered" : "anonymous");
+				var imageName = c.IsBot ? "bot" :
+					c.IsAdmin ? "admin-" :
+						"player-";
+
+				if (!c.IsBot)
+					imageName += c.Fingerprint != null ? "registered" : "anonymous";
 
 				profile.GetImageName = () => imageName;
-				profile.IsVisible = () => visible;
+				profile.IsVisible = () => true;
 			}
 
 			var profileTooltip = parent.GetOrNull<ClientTooltipRegionWidget>("PROFILE_TOOLTIP");
 			if (profileTooltip != null)
 			{
-				if (c != null && c.Fingerprint != null)
+				if (c.Fingerprint != null)
 					profileTooltip.Template = "REGISTERED_PLAYER_TOOLTIP";
 
-				if (visible)
-					profileTooltip.Bind(orderManager, worldRenderer, c);
+				if (c.IsBot)
+					profileTooltip.Template = "BOT_TOOLTIP";
 
-				profileTooltip.IsVisible = () => visible;
+				profileTooltip.Bind(orderManager, worldRenderer, c);
+
+				profileTooltip.IsVisible = () => true;
 			}
 		}
 
@@ -418,11 +427,12 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 		public static void SetupNameWidget(Widget parent, Session.Client c, OrderManager orderManager, WorldRenderer worldRenderer)
 		{
-			var name = parent.Get<LabelWidget>("NAME");
-			name.IsVisible = () => true;
-			var font = Game.Renderer.Fonts[name.Font];
-			var label = WidgetUtils.TruncateText(c.Name, name.Bounds.Width, font);
-			name.GetText = () => label;
+			var label = parent.Get<LabelWidget>("NAME");
+			label.IsVisible = () => true;
+			var font = Game.Renderer.Fonts[label.Font];
+			var name = c.IsBot ? FluentProvider.GetMessage(c.Name) : c.Name;
+			var text = WidgetUtils.TruncateText(name, label.Bounds.Width, font);
+			label.GetText = () => text;
 
 			SetupProfileWidget(parent, c, orderManager, worldRenderer);
 		}
@@ -438,9 +448,12 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				WidgetUtils.TruncateText(name, slot.Bounds.Width - slot.Bounds.Height - slot.LeftMargin - slot.RightMargin,
 				Game.Renderer.Fonts[slot.Font]));
 
-			var closed = TranslationProvider.GetString(Closed);
-			var open = TranslationProvider.GetString(Open);
-			slot.GetText = () => truncated.Update(c != null ? c.Name : s.Closed ? closed : open);
+			var closed = FluentProvider.GetMessage(Closed);
+			var open = FluentProvider.GetMessage(Open);
+			slot.GetText = () => truncated.Update(c != null ?
+				c.IsBot ? FluentProvider.GetMessage(c.Name) : c.Name
+					: s.Closed ? closed : open);
+
 			slot.OnMouseDown = _ => ShowSlotDropDown(slot, s, c, orderManager, map, modData);
 
 			// Ensure Name selector (if present) is hidden
@@ -452,8 +465,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var name = parent.Get<LabelWidget>("NAME");
 			name.IsVisible = () => true;
 			name.GetText = () => c != null ? c.Name : s.Closed
-				? TranslationProvider.GetString(Closed)
-				: TranslationProvider.GetString(Open);
+				? FluentProvider.GetMessage(Closed)
+				: FluentProvider.GetMessage(Open);
 
 			// Ensure Slot selector (if present) is hidden
 			HideChildWidget(parent, "SLOT_OPTIONS");
@@ -519,7 +532,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			};
 		}
 
-		public static void SetupEditableColorWidget(Widget parent, Session.Slot s, Session.Client c, OrderManager orderManager, WorldRenderer worldRenderer, IColorPickerManagerInfo colorManager)
+		public static void SetupEditableColorWidget(Widget parent, Session.Slot s, Session.Client c,
+			OrderManager orderManager, WorldRenderer worldRenderer, IColorPickerManagerInfo colorManager)
 		{
 			var colorDropdown = parent.Get<DropDownButtonWidget>("COLOR");
 			colorDropdown.IsDisabled = () => (s != null && s.LockColor) || orderManager.LocalClient.IsReady;
@@ -550,7 +564,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			dropdown.IsDisabled = () => s.LockFaction || orderManager.LocalClient.IsReady;
 			dropdown.OnMouseDown = _ => ShowFactionDropDown(dropdown, c, orderManager, factions);
 
-			var (text, desc) = SplitOnFirstToken(factions[c.Faction].Description);
+			var description = factions[c.Faction].Description != null ? FluentProvider.GetMessage(factions[c.Faction].Description) : null;
+			var (text, desc) = SplitOnFirstToken(description);
 			dropdown.GetTooltipText = () => text;
 			dropdown.GetTooltipDesc = () => desc;
 
@@ -562,7 +577,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var factionName = parent.Get<LabelWidget>("FACTIONNAME");
 			var font = Game.Renderer.Fonts[factionName.Font];
 			var truncated = new CachedTransform<string, string>(clientFaction =>
-				WidgetUtils.TruncateText(factions[clientFaction].Name, factionName.Bounds.Width, font));
+				WidgetUtils.TruncateText(FluentProvider.GetMessage(factions[clientFaction].Name), factionName.Bounds.Width, font));
 			factionName.GetText = () => truncated.Update(c.Faction);
 
 			var factionFlag = parent.Get<ImageWidget>("FACTIONFLAG");
@@ -576,7 +591,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			dropdown.IsVisible = () => true;
 			dropdown.IsDisabled = () => s.LockTeam || orderManager.LocalClient.IsReady;
 			dropdown.OnMouseDown = _ => ShowTeamDropDown(dropdown, c, orderManager, map.PlayerCount);
-			dropdown.GetText = () => (c.Team == 0) ? "-" : c.Team.ToString();
+			dropdown.GetText = () => (c.Team == 0) ? "-" : c.Team.ToString(NumberFormatInfo.CurrentInfo);
 
 			HideChildWidget(parent, "TEAM");
 		}
@@ -585,7 +600,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		{
 			var team = parent.Get<LabelWidget>("TEAM");
 			team.IsVisible = () => true;
-			team.GetText = () => (c.Team == 0) ? "-" : c.Team.ToString();
+			team.GetText = () => (c.Team == 0) ? "-" : c.Team.ToString(NumberFormatInfo.CurrentInfo);
 			HideChildWidget(parent, "TEAM_DROPDOWN");
 		}
 

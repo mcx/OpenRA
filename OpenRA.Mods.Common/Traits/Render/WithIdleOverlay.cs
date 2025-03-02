@@ -51,10 +51,7 @@ namespace OpenRA.Mods.Common.Traits.Render
 				yield break;
 
 			if (Palette != null)
-			{
-				var ownerName = init.Get<OwnerInit>().InternalName;
-				p = init.WorldRenderer.Palette(IsPlayerPalette ? Palette + ownerName : Palette);
-			}
+				p = init.WorldRenderer.Palette(IsPlayerPalette ? Palette + init.Get<OwnerInit>().InternalName : Palette);
 
 			Func<WAngle> facing;
 			var dynamicfacingInit = init.GetOrDefault<DynamicFacingInit>();
@@ -95,9 +92,12 @@ namespace OpenRA.Mods.Common.Traits.Render
 		{
 			var rs = self.Trait<RenderSprites>();
 			var body = self.Trait<BodyOrientation>();
+			var facing = self.TraitOrDefault<IFacing>();
 
 			var image = info.Image ?? rs.GetImage(self);
-			overlay = new Animation(self.World, image, () => IsTraitPaused)
+			overlay = new Animation(self.World, image,
+				facing == null ? () => WAngle.Zero : (body == null ? () => facing.Facing : () => body.QuantizeFacing(facing.Facing)),
+				() => IsTraitPaused)
 			{
 				IsDecoration = info.IsDecoration
 			};

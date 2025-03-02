@@ -44,7 +44,7 @@ namespace OpenRA.Mods.Common.Widgets
 			}
 		}
 
-		public Size IdealPreviewSize { get; private set; }
+		public Size IdealPreviewSize { get; }
 
 		[ObjectCreator.UseCtor]
 		public ResourcePreviewWidget(ModData modData, WorldRenderer worldRenderer, World world)
@@ -71,7 +71,7 @@ namespace OpenRA.Mods.Common.Widgets
 			IdealPreviewSize = other.IdealPreviewSize;
 		}
 
-		public override Widget Clone() { return new ResourcePreviewWidget(this); }
+		public override ResourcePreviewWidget Clone() { return new ResourcePreviewWidget(this); }
 
 		public override void Draw()
 		{

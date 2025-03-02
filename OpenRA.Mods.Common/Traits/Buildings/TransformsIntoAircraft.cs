@@ -26,7 +26,7 @@ namespace OpenRA.Mods.Common.Traits
 
 		[ActorReference]
 		[FieldLoader.Require]
-		public readonly HashSet<string> DockActors = new() { };
+		public readonly HashSet<string> DockActors = new();
 
 		[VoiceReference]
 		public readonly string Voice = "Action";
@@ -121,6 +121,9 @@ namespace OpenRA.Mods.Common.Traits
 
 			if (order.OrderString == "Move")
 			{
+				if (!order.Target.IsValidFor(self))
+					return;
+
 				var cell = self.World.Map.Clamp(self.World.Map.CellContaining(order.Target.CenterPosition));
 				if (!Info.MoveIntoShroud && !self.Owner.Shroud.IsExplored(cell))
 					return;

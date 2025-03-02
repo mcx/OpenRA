@@ -10,7 +10,6 @@
 #endregion
 
 using System.Collections.Generic;
-using System.Linq;
 
 namespace OpenRA.Mods.Common.UpdateRules.Rules
 {
@@ -24,7 +23,7 @@ namespace OpenRA.Mods.Common.UpdateRules.Rules
 
 		public override IEnumerable<string> AfterUpdate(ModData modData)
 		{
-			if (locations.Any())
+			if (locations.Count != 0)
 				yield return "Icon overlay logic has been split from ProducibleWithLevel to WithProductionIconOverlay trait.\n" +
 					"If you have been using VeteranProductionIconOverlay trait, add WithProductionIconOverlay to following actors:\n" +
 					UpdateUtils.FormatMessageList(locations);
@@ -32,16 +31,16 @@ namespace OpenRA.Mods.Common.UpdateRules.Rules
 			locations.Clear();
 		}
 
-		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNode actorNode)
+		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNodeBuilder actorNode)
 		{
 			foreach (var veteranProductionIconOverlay in actorNode.ChildrenMatching("VeteranProductionIconOverlay"))
 			{
 				veteranProductionIconOverlay.RenameKey("ProductionIconOverlayManager");
-				veteranProductionIconOverlay.AddNode(new MiniYamlNode("Type", "Veterancy"));
+				veteranProductionIconOverlay.AddNode(new MiniYamlNodeBuilder("Type", "Veterancy"));
 			}
 
 			foreach (var producibleWithLevel in actorNode.ChildrenMatching("ProducibleWithLevel"))
-				locations.Add($"{actorNode.Key}: {producibleWithLevel.Key} ({actorNode.Location.Filename})");
+				locations.Add($"{actorNode.Key}: {producibleWithLevel.Key} ({actorNode.Location.Name})");
 
 			yield break;
 		}

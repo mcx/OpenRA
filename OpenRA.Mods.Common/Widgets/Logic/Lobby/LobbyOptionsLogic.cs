@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using OpenRA.Network;
+using OpenRA.Primitives;
 using OpenRA.Traits;
 using OpenRA.Widgets;
 
@@ -20,7 +21,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 {
 	public class LobbyOptionsLogic : ChromeLogic
 	{
-		[TranslationReference]
+		[FluentReference]
 		const string NotAvailable = "label-not-available";
 
 		readonly ScrollPanelWidget panel;
@@ -107,7 +108,11 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 				checkbox.GetText = () => option.Name;
 				if (option.Description != null)
-					checkbox.GetTooltipText = () => option.Description;
+				{
+					var (text, desc) = LobbyUtils.SplitOnFirstToken(option.Description);
+					checkbox.GetTooltipText = () => text;
+					checkbox.GetTooltipDesc = () => desc;
+				}
 
 				checkbox.IsVisible = () => true;
 				checkbox.IsChecked = () => optionEnabled.Update(orderManager.LobbyInfo.GlobalSettings);
@@ -141,14 +146,19 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				var getOptionLabel = new CachedTransform<string, string>(id =>
 				{
 					if (id == null || !option.Values.TryGetValue(id, out var value))
-						return TranslationProvider.GetString(NotAvailable);
+						return FluentProvider.GetMessage(NotAvailable);
 
 					return value;
 				});
 
 				dropdown.GetText = () => getOptionLabel.Update(optionValue.Update(orderManager.LobbyInfo.GlobalSettings).Value);
 				if (option.Description != null)
-					dropdown.GetTooltipText = () => option.Description;
+				{
+					var (text, desc) = LobbyUtils.SplitOnFirstToken(option.Description);
+					dropdown.GetTooltipText = () => text;
+					dropdown.GetTooltipDesc = () => desc;
+				}
+
 				dropdown.IsVisible = () => true;
 				dropdown.IsDisabled = () => configurationDisabled() ||
 					optionValue.Update(orderManager.LobbyInfo.GlobalSettings).IsLocked;

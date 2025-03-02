@@ -27,7 +27,7 @@ namespace OpenRA.Network
 			// the Order objects directly on the local client.
 			data = new MemoryStream();
 			foreach (var o in orders)
-				data.WriteArray(o.Serialize());
+				data.Write(o.Serialize());
 		}
 
 		public OrderPacket(MemoryStream data)
@@ -55,7 +55,7 @@ namespace OpenRA.Network
 		public byte[] Serialize(int frame)
 		{
 			var ms = new MemoryStream((int)data.Length + 4);
-			ms.WriteArray(BitConverter.GetBytes(frame));
+			ms.Write(frame);
 
 			data.Position = 0;
 			data.CopyTo(ms);
@@ -83,19 +83,19 @@ namespace OpenRA.Network
 		public static byte[] SerializeSync((int Frame, int SyncHash, ulong DefeatState) data)
 		{
 			var ms = new MemoryStream(4 + Order.SyncHashOrderLength);
-			ms.WriteArray(BitConverter.GetBytes(data.Frame));
+			ms.Write(data.Frame);
 			ms.WriteByte((byte)OrderType.SyncHash);
-			ms.WriteArray(BitConverter.GetBytes(data.SyncHash));
-			ms.WriteArray(BitConverter.GetBytes(data.DefeatState));
+			ms.Write(data.SyncHash);
+			ms.Write(data.DefeatState);
 			return ms.GetBuffer();
 		}
 
 		public static byte[] SerializePingResponse(long timestamp, byte queueLength)
 		{
 			var ms = new MemoryStream(14);
-			ms.WriteArray(BitConverter.GetBytes(0));
+			ms.Write(0);
 			ms.WriteByte((byte)OrderType.Ping);
-			ms.WriteArray(BitConverter.GetBytes(timestamp));
+			ms.Write(timestamp);
 			ms.WriteByte(queueLength);
 			return ms.GetBuffer();
 		}

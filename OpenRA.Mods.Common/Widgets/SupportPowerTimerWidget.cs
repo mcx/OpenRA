@@ -21,8 +21,10 @@ namespace OpenRA.Mods.Common.Widgets
 {
 	public class SupportPowerTimerWidget : Widget
 	{
+		[FluentReference("player", "support-power", "time")]
+		const string Format = "support-power-timer";
+
 		public readonly string Font = "Bold";
-		public readonly string Format = "{0}'s {1}: {2}";
 		public readonly TextAlign Align = TextAlign.Left;
 		public readonly TimerOrder Order = TimerOrder.Descending;
 
@@ -57,13 +59,12 @@ namespace OpenRA.Mods.Common.Widgets
 			{
 				var self = p.Instances[0].Self;
 				var time = WidgetUtils.FormatTime(p.RemainingTicks, false, self.World.Timestep);
-				var text = string.Format(Format, self.Owner.PlayerName, p.Info.Name, time);
-				var playerColor = self.Owner.Color;
+				var text = FluentProvider.GetMessage(Format,
+					"player", self.Owner.ResolvedPlayerName,
+					"support-power", p.Name,
+					"time", time);
 
-				if (Game.Settings.Game.UsePlayerStanceColors)
-					playerColor = self.Owner.PlayerRelationshipColor(self);
-
-				var color = !p.Ready || Game.LocalTick % 50 < 25 ? playerColor : Color.White;
+				var color = !p.Ready || Game.LocalTick % 50 < 25 ? self.OwnerColor() : Color.White;
 
 				return (text, color);
 			}).ToArray();
@@ -78,7 +79,7 @@ namespace OpenRA.Mods.Common.Widgets
 			foreach (var t in texts)
 			{
 				var textSize = font.Measure(t.Text);
-				var location = new float2(Bounds.Location) + new float2(0, y);
+				var location = new float2(Bounds.X, Bounds.Y + y);
 
 				if (Align == TextAlign.Center)
 					location += new int2((Bounds.Width - textSize.X) / 2, 0);

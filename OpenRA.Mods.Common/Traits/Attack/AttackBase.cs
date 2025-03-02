@@ -55,6 +55,9 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Tolerance for attack angle. Range [0, 512], 512 covers 360 degrees.")]
 		public readonly WAngle FacingTolerance = new(512);
 
+		[Desc("When enabled, show the target cursor on terrain cells even without force-fire.")]
+		public readonly bool TargetTerrainWithoutForceFire = false;
+
 		public override void RulesetLoaded(Ruleset rules, ActorInfo ai)
 		{
 			base.RulesetLoaded(rules, ai);
@@ -223,7 +226,8 @@ namespace OpenRA.Mods.Common.Traits
 			return order.OrderString == attackOrderName || order.OrderString == forceAttackOrderName ? Info.Voice : null;
 		}
 
-		public abstract Activity GetAttackActivity(Actor self, AttackSource source, in Target newTarget, bool allowMove, bool forceAttack, Color? targetLineColor = null);
+		public abstract Activity GetAttackActivity(
+			Actor self, AttackSource source, in Target newTarget, bool allowMove, bool forceAttack, Color? targetLineColor = null);
 
 		public bool HasAnyValidWeapons(in Target t, bool checkForCenterTargetingWeapons = false, bool reloadingIsInvalid = false)
 		{
@@ -247,7 +251,7 @@ namespace OpenRA.Mods.Common.Traits
 
 		public virtual WPos GetTargetPosition(WPos pos, in Target target)
 		{
-			return HasAnyValidWeapons(target, true) ? target.CenterPosition : target.Positions.PositionClosestTo(pos);
+			return HasAnyValidWeapons(target, true) ? target.CenterPosition : target.Positions.ClosestToIgnoringPath(pos);
 		}
 
 		public WDist GetMinimumRange()
@@ -361,7 +365,7 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			// If force-fire is not used, and the target requires force-firing or the target is
 			// terrain or invalid, no armaments can be used
-			if (!forceAttack && (t.Type == TargetType.Terrain || t.Type == TargetType.Invalid || t.RequiresForceFire))
+			if (!forceAttack && ((t.Type == TargetType.Terrain && !Info.TargetTerrainWithoutForceFire) || t.Type == TargetType.Invalid || t.RequiresForceFire))
 				return Enumerable.Empty<Armament>();
 
 			// Get target's owner; in case of terrain or invalid target there will be no problems
@@ -445,15 +449,15 @@ namespace OpenRA.Mods.Common.Traits
 					modifiers |= TargetModifiers.ForceAttack;
 
 				var forceAttack = modifiers.HasModifier(TargetModifiers.ForceAttack);
-				var armaments = ab.ChooseArmamentsForTarget(target, forceAttack);
-				if (!armaments.Any())
-					return false;
 
 				// Use valid armament with highest range out of those that have ammo
 				// If all are out of ammo, just use valid armament with highest range
-				armaments = armaments.OrderByDescending(x => x.MaxRange());
-				var a = armaments.FirstOrDefault(x => !x.IsTraitPaused);
-				a ??= armaments.First();
+				var a = ab.ChooseArmamentsForTarget(target, forceAttack)
+					.OrderBy(x => x.IsTraitPaused)
+					.ThenByDescending(x => x.MaxRange())
+					.FirstOrDefault();
+				if (a == null)
+					return false;
 
 				var outOfRange = !target.IsInRange(self.CenterPosition, a.MaxRange()) ||
 					(!forceAttack && target.Type == TargetType.FrozenActor && !ab.Info.TargetFrozenActors);
@@ -477,20 +481,21 @@ namespace OpenRA.Mods.Common.Traits
 
 				IsQueued = modifiers.HasModifier(TargetModifiers.ForceQueue);
 
-				// Targeting the terrain is only possible with force-attack modifier
-				if (modifiers.HasModifier(TargetModifiers.ForceMove) || !modifiers.HasModifier(TargetModifiers.ForceAttack))
+				// Targeting the terrain is only possible with force-attack modifier or when TargetTerrainWithoutForceFire is set
+				if (modifiers.HasModifier(TargetModifiers.ForceMove) ||
+					!(ab.Info.TargetTerrainWithoutForceFire || modifiers.HasModifier(TargetModifiers.ForceAttack)))
 					return false;
 
 				var target = Target.FromCell(self.World, location);
-				var armaments = ab.ChooseArmamentsForTarget(target, true);
-				if (!armaments.Any())
-					return false;
 
 				// Use valid armament with highest range out of those that have ammo
 				// If all are out of ammo, just use valid armament with highest range
-				armaments = armaments.OrderByDescending(x => x.MaxRange());
-				var a = armaments.FirstOrDefault(x => !x.IsTraitPaused);
-				a ??= armaments.First();
+				var a = ab.ChooseArmamentsForTarget(target, true)
+					.OrderBy(x => x.IsTraitPaused)
+					.ThenByDescending(x => x.MaxRange())
+					.FirstOrDefault();
+				if (a == null)
+					return false;
 
 				cursor = !target.IsInRange(self.CenterPosition, a.MaxRange())
 					? ab.Info.OutsideRangeCursor ?? a.Info.OutsideRangeCursor
