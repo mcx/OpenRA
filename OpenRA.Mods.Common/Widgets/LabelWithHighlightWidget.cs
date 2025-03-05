@@ -23,8 +23,8 @@ namespace OpenRA.Mods.Common.Widgets
 		readonly CachedTransform<string, (string Text, bool Highlighted)[]> textComponents;
 
 		[ObjectCreator.UseCtor]
-		public LabelWithHighlightWidget()
-			: base()
+		public LabelWithHighlightWidget(ModData modData)
+			: base(modData)
 		{
 			textComponents = new CachedTransform<string, (string, bool)[]>(MakeComponents);
 		}
@@ -39,14 +39,14 @@ namespace OpenRA.Mods.Common.Widgets
 		(string, bool)[] MakeComponents(string text)
 		{
 			var components = new List<(string, bool)>();
-			foreach (var l in text.Split(new[] { "\\n" }, StringSplitOptions.None))
+			foreach (var l in text.Split("\\n", StringSplitOptions.None))
 			{
 				var line = l;
 
 				while (line.Length > 0)
 				{
-					var highlightStart = line.IndexOf('{');
-					var highlightEnd = line.IndexOf('}', 0);
+					var highlightStart = line.IndexOf('<');
+					var highlightEnd = line.IndexOf('>', 0);
 
 					if (highlightStart > 0 && highlightEnd > highlightStart)
 					{
@@ -81,6 +81,6 @@ namespace OpenRA.Mods.Common.Widgets
 			}
 		}
 
-		public override Widget Clone() { return new LabelWithHighlightWidget(this); }
+		public override LabelWithHighlightWidget Clone() { return new LabelWithHighlightWidget(this); }
 	}
 }

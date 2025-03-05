@@ -105,17 +105,17 @@ namespace OpenRA.Mods.Common.Widgets
 		public static IEnumerable<string> LinterHotkeyNames(MiniYamlNode widgetNode, Action<string> emitError)
 		{
 			var savePrefix = "";
-			var savePrefixNode = widgetNode.Value.Nodes.FirstOrDefault(n => n.Key == "BookmarkSaveKeyPrefix");
+			var savePrefixNode = widgetNode.Value.NodeWithKeyOrDefault("BookmarkSaveKeyPrefix");
 			if (savePrefixNode != null)
 				savePrefix = savePrefixNode.Value.Value;
 
 			var restorePrefix = "";
-			var restorePrefixNode = widgetNode.Value.Nodes.FirstOrDefault(n => n.Key == "BookmarkRestoreKeyPrefix");
+			var restorePrefixNode = widgetNode.Value.NodeWithKeyOrDefault("BookmarkRestoreKeyPrefix");
 			if (restorePrefixNode != null)
 				restorePrefix = restorePrefixNode.Value.Value;
 
 			var count = 0;
-			var countNode = widgetNode.Value.Nodes.FirstOrDefault(n => n.Key == "BookmarkKeyCount");
+			var countNode = widgetNode.Value.NodeWithKeyOrDefault("BookmarkKeyCount");
 			if (countNode != null)
 				count = FieldLoader.GetValue<int>("BookmarkKeyCount", countNode.Value.Value);
 
@@ -130,7 +130,7 @@ namespace OpenRA.Mods.Common.Widgets
 
 			for (var i = 0; i < count; i++)
 			{
-				var suffix = (i + 1).ToString("D2");
+				var suffix = (i + 1).ToStringInvariant("D2");
 				yield return savePrefix + suffix;
 				yield return restorePrefix + suffix;
 			}
@@ -153,10 +153,10 @@ namespace OpenRA.Mods.Common.Widgets
 			base.Initialize(args);
 
 			saveBookmarkHotkeys = Exts.MakeArray(BookmarkKeyCount,
-				i => modData.Hotkeys[BookmarkSaveKeyPrefix + (i + 1).ToString("D2")]);
+				i => modData.Hotkeys[BookmarkSaveKeyPrefix + (i + 1).ToStringInvariant("D2")]);
 
 			restoreBookmarkHotkeys = Exts.MakeArray(BookmarkKeyCount,
-				i => modData.Hotkeys[BookmarkRestoreKeyPrefix + (i + 1).ToString("D2")]);
+				i => modData.Hotkeys[BookmarkRestoreKeyPrefix + (i + 1).ToStringInvariant("D2")]);
 
 			bookmarkPositions = new WPos?[BookmarkKeyCount];
 		}
@@ -194,6 +194,9 @@ namespace OpenRA.Mods.Common.Widgets
 				edgeDirections = ScrollDirection.None;
 				if (Game.Settings.Game.ViewportEdgeScroll && Game.Renderer.WindowHasInputFocus)
 					edgeDirections = CheckForDirections();
+
+				if (Ui.KeyboardFocusWidget != null)
+					keyboardDirections = ScrollDirection.None;
 
 				if (keyboardDirections != ScrollDirection.None || edgeDirections != ScrollDirection.None)
 				{

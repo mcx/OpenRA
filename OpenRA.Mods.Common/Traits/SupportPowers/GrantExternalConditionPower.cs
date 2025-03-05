@@ -47,10 +47,6 @@ namespace OpenRA.Mods.Common.Traits
 			"This requires the actor to have the WithSpriteBody trait or one of its derivatives.")]
 		public readonly string Sequence = "active";
 
-		[CursorReference]
-		[Desc("Cursor to display when there are no units to apply the condition in range.")]
-		public readonly string BlockedCursor = "move-blocked";
-
 		public readonly string FootprintImage = "overlay";
 
 		[SequenceReference(nameof(FootprintImage))]
@@ -96,11 +92,12 @@ namespace OpenRA.Mods.Common.Traits
 		public IEnumerable<Actor> UnitsInRange(CPos xy)
 		{
 			var tiles = CellsMatching(xy, footprint, info.Dimensions);
-			var units = new List<Actor>();
+			var units = new HashSet<Actor>();
 			foreach (var t in tiles)
-				units.AddRange(Self.World.ActorMap.GetActorsAt(t));
+				foreach (var a in Self.World.ActorMap.GetActorsAt(t))
+					units.Add(a);
 
-			return units.Distinct().Where(a =>
+			return units.Where(a =>
 			{
 				if (!info.ValidRelationships.HasRelationship(Self.Owner.RelationshipWith(a.Owner)))
 					return false;

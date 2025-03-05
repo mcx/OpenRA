@@ -13,6 +13,7 @@ using OpenRA.Traits;
 
 namespace OpenRA.Mods.Common.Traits
 {
+	[TraitLocation(SystemActors.Player)]
 	[Desc("Manages AI repairing base buildings.")]
 	public class BuildingRepairBotModuleInfo : ConditionalTraitInfo
 	{
@@ -33,14 +34,11 @@ namespace OpenRA.Mods.Common.Traits
 				return;
 
 			var rb = self.TraitOrDefault<RepairableBuilding>();
-			if (rb != null)
+			if (rb != null && e.DamageState > DamageState.Light && e.PreviousDamageState <= DamageState.Light && !rb.RepairActive)
 			{
-				if (e.DamageState > DamageState.Light && e.PreviousDamageState <= DamageState.Light && !rb.RepairActive)
-				{
-					AIUtils.BotDebug("{0} noticed damage {1} {2}->{3}, repairing.",
-						self.Owner, self, e.PreviousDamageState, e.DamageState);
-					bot.QueueOrder(new Order("RepairBuilding", self.Owner.PlayerActor, Target.FromActor(self), false));
-				}
+				AIUtils.BotDebug("{0} noticed damage {1} {2}->{3}, repairing.",
+					self.Owner, self, e.PreviousDamageState, e.DamageState);
+				bot.QueueOrder(new Order("RepairBuilding", self.Owner.PlayerActor, Target.FromActor(self), false));
 			}
 		}
 	}

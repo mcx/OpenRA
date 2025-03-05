@@ -25,7 +25,9 @@ namespace OpenRA
 		{
 			this.modData = modData;
 
-			foreach (var file in modData.Manifest.ChromeLayout.Select(a => MiniYaml.FromStream(modData.DefaultFileSystem.Open(a), a)))
+			var stringPool = new HashSet<string>(); // Reuse common strings in YAML
+			foreach (var file in modData.Manifest.ChromeLayout.Select(
+				a => MiniYaml.FromStream(modData.DefaultFileSystem.Open(a), a, stringPool: stringPool)))
 				foreach (var w in file)
 				{
 					var key = w.Key[(w.Key.IndexOf('@') + 1)..];
@@ -66,7 +68,7 @@ namespace OpenRA
 					foreach (var c in child.Value.Nodes)
 						LoadWidget(args, widget, c);
 
-			var logicNode = node.Value.Nodes.FirstOrDefault(n => n.Key == "Logic");
+			var logicNode = node.Value.NodeWithKeyOrDefault("Logic");
 			var logic = logicNode?.Value.ToDictionary();
 			args.Add("logicArgs", logic);
 

@@ -3,6 +3,7 @@ World:
 		Scripts: oil-spill.lua
 	SpawnStartingUnits:
 		DropdownVisible: False
+		DropdownLocked: True
 	StartingUnits@mcvonly:
 		BaseActor: fcom
 
@@ -53,7 +54,7 @@ OILB.Husk:
 		Footprint: xx xx
 		Dimensions: 2,2
 	Tooltip:
-		Name: Husk (Oil Derrick)
+		Name: actor-oilb-husk-name
 	CaptureManager:
 	Capturable:
 		Types: building-husk

@@ -18,7 +18,7 @@ using OpenRA.Primitives;
 
 namespace OpenRA.Mods.D2k.UtilityCommands
 {
-	public class D2kMapImporter
+	public sealed class D2kMapImporter
 	{
 		const int MapCordonWidth = 2;
 
@@ -350,6 +350,8 @@ namespace OpenRA.Mods.D2k.UtilityCommands
 
 		void FillMap()
 		{
+			var actorNodes = new List<MiniYamlNode>();
+			var playerNodes = new List<MiniYamlNode>();
 			while (stream.Position < stream.Length)
 			{
 				var tileInfo = stream.ReadUInt16();
@@ -379,9 +381,10 @@ namespace OpenRA.Mods.D2k.UtilityCommands
 							new OwnerInit(kvp.Owner)
 						};
 
-						map.ActorDefinitions.Add(new MiniYamlNode("Actor" + map.ActorDefinitions.Count, a.Save()));
+						actorNodes.Add(new MiniYamlNode("Actor" + (map.ActorDefinitions.Count + actorNodes.Count), a.Save()));
 
-						if (map.PlayerDefinitions.All(x => x.Value.Nodes.Single(y => y.Key == "Name").Value.Value != kvp.Owner))
+						if (map.PlayerDefinitions.Concat(playerNodes).All(
+							x => x.Value.NodeWithKey("Name").Value.Value != kvp.Owner))
 						{
 							var playerInfo = PlayerReferenceDataByPlayerName[kvp.Owner];
 							var playerReference = new PlayerReference
@@ -394,7 +397,7 @@ namespace OpenRA.Mods.D2k.UtilityCommands
 							};
 
 							var node = new MiniYamlNode($"{nameof(PlayerReference)}@{kvp.Owner}", FieldSaver.SaveDifferences(playerReference, new PlayerReference()));
-							map.PlayerDefinitions.Add(node);
+							playerNodes.Add(node);
 						}
 
 						if (kvp.Actor == "mpspawn")
@@ -402,6 +405,9 @@ namespace OpenRA.Mods.D2k.UtilityCommands
 					}
 				}
 			}
+
+			map.ActorDefinitions = map.ActorDefinitions.Concat(actorNodes).ToArray();
+			map.PlayerDefinitions = map.PlayerDefinitions.Concat(playerNodes).ToArray();
 		}
 
 		CPos GetCurrentTilePositionOnMap()
@@ -503,17 +509,12 @@ namespace OpenRA.Mods.D2k.UtilityCommands
 
 			// HACK: The arrakis.yaml tileset file seems to be missing some tiles, so just get a replacement for them
 			// Also used for duplicate tiles that are taken from only tileset
-			if (template == null)
+			// Just get a template that contains a tile with the same ID as requested
+			template ??= terrainInfo.Templates.FirstOrDefault(t =>
 			{
-				// Just get a template that contains a tile with the same ID as requested
-				var templates = terrainInfo.Templates.Where(t =>
-				{
-					var templateInfo = (DefaultTerrainTemplateInfo)t.Value;
-					return templateInfo.Frames != null && templateInfo.Frames.Contains(tileIndex);
-				});
-				if (templates.Any())
-					template = templates.First().Value;
-			}
+				var templateInfo = (DefaultTerrainTemplateInfo)t.Value;
+				return templateInfo.Frames != null && templateInfo.Frames.Contains(tileIndex);
+			}).Value;
 
 			if (template == null)
 			{
@@ -524,7 +525,7 @@ namespace OpenRA.Mods.D2k.UtilityCommands
 			}
 
 			var templateIndex = template.Id;
-			var frameIndex = Array.IndexOf(((DefaultTerrainTemplateInfo)template).Frames, tileIndex);
+			var frameIndex = ((DefaultTerrainTemplateInfo)template).Frames.IndexOf(tileIndex);
 
 			return new TerrainTile(templateIndex, (byte)((frameIndex == -1) ? 0 : frameIndex));
 		}

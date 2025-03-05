@@ -77,11 +77,12 @@ namespace OpenRA.Graphics
 			cachedPanelSprites = new Dictionary<string, Sprite[]>();
 			cachedCollectionSheets = new Dictionary<Collection, (Sheet, int)>();
 
+			var stringPool = new HashSet<string>(); // Reuse common strings in YAML
 			var chrome = MiniYaml.Merge(modData.Manifest.Chrome
-				.Select(s => MiniYaml.FromStream(fileSystem.Open(s), s)));
+				.Select(s => MiniYaml.FromStream(fileSystem.Open(s), s, stringPool: stringPool)));
 
 			foreach (var c in chrome)
-				if (!c.Key.StartsWith("^", StringComparison.Ordinal))
+				if (!c.Key.StartsWith('^'))
 					LoadCollection(c.Key, c.Value);
 		}
 
@@ -227,14 +228,18 @@ namespace OpenRA.Graphics
 					(PanelSides.Bottom | PanelSides.Right, new Rectangle(pr[0] + pr[2] + pr[4], pr[1] + pr[3] + pr[5], pr[6], pr[7]))
 				};
 
-				sprites = sides.Select(x => ps.HasSide(x.PanelSides) ? new Sprite(sheetDensity.Sheet, sheetDensity.Density * x.Bounds, TextureChannel.RGBA, 1f / sheetDensity.Density) : null)
+				sprites = sides
+					.Select(x =>
+						ps.HasSide(x.PanelSides)
+							? new Sprite(sheetDensity.Sheet, sheetDensity.Density * x.Bounds, TextureChannel.RGBA, 1f / sheetDensity.Density)
+							: null)
 					.ToArray();
 			}
 			else
 			{
 				// PERF: We don't need to search for images if there are no definitions.
 				// PERF: It's more efficient to send an empty array rather than an array of 9 nulls.
-				if (!collection.Regions.Any())
+				if (collection.Regions.Count == 0)
 					return Array.Empty<Sprite>();
 
 				// Support manual definitions for unusual dialog layouts

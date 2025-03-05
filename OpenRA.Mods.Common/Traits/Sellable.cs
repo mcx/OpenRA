@@ -30,8 +30,9 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Speech notification to play.")]
 		public readonly string Notification = null;
 
+		[FluentReference(optional: true)]
 		[Desc("Text notification to display.")]
-		public string TextNotification = null;
+		public readonly string TextNotification = null;
 
 		[Desc("Whether to show the cash tick indicators rising from the actor.")]
 		public readonly bool ShowTicks = true;
@@ -60,7 +61,7 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			this.self = self;
 			this.info = info;
-			health = Exts.Lazy(() => self.TraitOrDefault<IHealth>());
+			health = Exts.Lazy(self.TraitOrDefault<IHealth>);
 		}
 
 		public void ResolveOrder(Actor self, Order order)

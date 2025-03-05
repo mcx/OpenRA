@@ -17,14 +17,14 @@ World:
 		ParticleColors: 304074, 28386C, 202C60, 182C54
 		LineTailAlphaValue: 150
 		ParticleSize: 1, 1
-	GlobalLightingPaletteEffect:
+	TintPostProcessEffect:
 		Red: 0.75
 		Green: 0.85
 		Blue: 1.5
 		Ambient: 0.45
 	MusicPlaylist:
 		BackgroundMusic: rain
-	FlashPaletteEffect@LIGHTNINGSTRIKE:
+	FlashPostProcessEffect@LIGHTNINGSTRIKE:
 		Type: LightningStrike
 	LuaScript:
 		Scripts: campaign.lua, fort-lonestar.lua, fort-lonestar-AI.lua
@@ -33,6 +33,7 @@ World:
 		BuildRadiusCheckboxVisible: False
 	SpawnStartingUnits:
 		DropdownVisible: False
+		DropdownLocked: True
 	MapOptions:
 		TechLevelDropdownLocked: True
 		TechLevel: unrestricted
@@ -142,7 +143,7 @@ MOBILETENT:
 	Valued:
 		Cost: 2000
 	Tooltip:
-		Name: Mobile Tent
+		Name: actor-mobiletent-name
 	Selectable:
 		DecorationBounds: 896, 896
 	SelectionDecorations:
@@ -164,7 +165,7 @@ MOBILETENT:
 		Facing: 384
 		TransformSounds: placbldg.aud, build5.aud
 		NoTransformNotification: BuildingCannotPlaceAudio
-		NoTransformTextNotification: Cannot deploy here.
+		NoTransformTextNotification: notification-cannot-deploy-here
 	RenderSprites:
 		Image: TRUK
 
@@ -227,7 +228,7 @@ E2:
 		Prerequisites: barracks
 	Valued:
 		Cost: 40
-	Explodes:
+	FireWarheadsOnDeath:
 		Chance: 20
 
 E3:
@@ -277,7 +278,7 @@ SNIPER:
 	Valued:
 		Cost: 200
 	Tooltip:
-		Name: Sniper
+		Name: actor-sniper.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Buildable:
@@ -285,7 +286,7 @@ SNIPER:
 		BuildAtProductionType: Soldier
 		BuildPaletteOrder: 80
 		Prerequisites: barracks
-		Description: Elite sniper infantry unit.\nCan detect cloaked units.\n  Strong vs Infantry\n  Weak vs Vehicles, Aircraft
+		Description: actor-sniper.description
 	Health:
 		HP: 20000
 	Passenger:
@@ -316,7 +317,6 @@ SNIPER:
 		CloakSound:
 		UncloakSound:
 		UncloakOn: Attack, Unload, Infiltrate, Demolish, Move
-		IsPlayerPalette: true
 		PauseOnCondition: cloak-force-disabled
 	GrantConditionOnDamageState@UNCLOAK:
 		Condition: cloak-force-disabled
@@ -383,7 +383,7 @@ V2RL:
 		RecoilRecovery: 0c7
 	Armament@SECONDARY:
 		Recoil: 2
-	Explodes:
+	FireWarheadsOnDeath:
 		Weapon: napalm
 		EmptyWeapon: napalm
 	ChangesHealth:
@@ -393,7 +393,7 @@ V2RL:
 
 powerproxy.parabombs:
 	AirstrikePower:
-		Description: A MiG bomber drops a load of parachuted bombs on your target.
+		Description: actor-powerproxy-parabombs-description
 		CameraRemoveDelay: 50
 
 BADR.Bomber:
@@ -404,7 +404,7 @@ BADR.Bomber:
 	AmmoPool:
 		Ammo: 30
 	Tooltip:
-		Name: MiG Bomber
+		Name: actor-mig-bomber-name
 	SpawnActorOnDeath:
 		Actor: MIG.Husk
 	RenderSprites:

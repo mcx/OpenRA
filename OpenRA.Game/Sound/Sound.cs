@@ -359,8 +359,7 @@ namespace OpenRA
 		public bool PlayPredefined(SoundType soundType, Ruleset ruleset, Player player, Actor voicedActor, string type, string definition, string variant,
 			bool relative, WPos pos, float volumeModifier, bool attenuateVolume)
 		{
-			if (ruleset == null)
-				throw new ArgumentNullException(nameof(ruleset));
+			ArgumentNullException.ThrowIfNull(ruleset);
 
 			if (definition == null || DisableAllSounds || (DisableWorldSounds && soundType == SoundType.World))
 				return false;
@@ -380,17 +379,17 @@ namespace OpenRA
 
 			if (voicedActor != null)
 			{
-				if (!rules.VoicePools.Value.ContainsKey(definition))
+				if (!rules.VoicePools.Value.TryGetValue(definition, out var p))
 					throw new InvalidOperationException($"Can't find {definition} in voice pool.");
 
-				pool = rules.VoicePools.Value[definition];
+				pool = p;
 			}
 			else
 			{
-				if (!rules.NotificationsPools.Value.ContainsKey(definition))
+				if (!rules.NotificationsPools.Value.TryGetValue(definition, out var p))
 					throw new InvalidOperationException($"Can't find {definition} in notification pool.");
 
-				pool = rules.NotificationsPools.Value[definition];
+				pool = p;
 			}
 
 			var clip = pool.GetNext();
@@ -460,8 +459,7 @@ namespace OpenRA
 
 		public bool PlayNotification(Ruleset rules, Player player, string type, string notification, string variant)
 		{
-			if (rules == null)
-				throw new ArgumentNullException(nameof(rules));
+			ArgumentNullException.ThrowIfNull(rules);
 
 			if (type == null || notification == null)
 				return false;

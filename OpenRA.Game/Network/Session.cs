@@ -41,13 +41,13 @@ namespace OpenRA.Network
 			return null;
 		}
 
-		public static Session Deserialize(string data)
+		public static Session Deserialize(string data, string name)
 		{
 			try
 			{
 				var session = new Session();
 
-				var nodes = MiniYaml.FromString(data);
+				var nodes = MiniYaml.FromString(data, name);
 				foreach (var node in nodes)
 				{
 					var strings = node.Key.Split('@');
@@ -227,7 +227,7 @@ namespace OpenRA.Network
 			{
 				var gs = FieldLoader.Load<Global>(data);
 
-				var optionsNode = data.Nodes.FirstOrDefault(n => n.Key == "Options");
+				var optionsNode = data.NodeWithKeyOrDefault("Options");
 				if (optionsNode != null)
 					foreach (var n in optionsNode.Value.Nodes)
 						gs.LobbyOptions[n.Key] = FieldLoader.Load<LobbyOptionState>(n.Value);
@@ -238,8 +238,9 @@ namespace OpenRA.Network
 			public MiniYamlNode Serialize()
 			{
 				var data = new MiniYamlNode("GlobalSettings", FieldSaver.Save(this));
-				var options = LobbyOptions.Select(kv => new MiniYamlNode(kv.Key, FieldSaver.Save(kv.Value))).ToList();
-				data.Value.Nodes.Add(new MiniYamlNode("Options", new MiniYaml(null, options)));
+				var options = LobbyOptions.Select(kv => new MiniYamlNode(kv.Key, FieldSaver.Save(kv.Value)));
+				data = data.WithValue(data.Value.WithNodesAppended(
+					new[] { new MiniYamlNode("Options", new MiniYaml(null, options)) }));
 				return data;
 			}
 
@@ -264,7 +265,7 @@ namespace OpenRA.Network
 		{
 			var sessionData = new List<MiniYamlNode>()
 			{
-				new MiniYamlNode("DisabledSpawnPoints", FieldSaver.FormatValue(DisabledSpawnPoints))
+				new("DisabledSpawnPoints", FieldSaver.FormatValue(DisabledSpawnPoints))
 			};
 
 			foreach (var client in Clients)

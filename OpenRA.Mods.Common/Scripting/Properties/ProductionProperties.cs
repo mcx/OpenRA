@@ -84,7 +84,7 @@ namespace OpenRA.Mods.Common.Scripting
 			get
 			{
 				if (rp.Path.Count > 0)
-					return rp.Path.Last();
+					return rp.Path[^1];
 
 				var exit = Self.NearestExitOrDefault(Self.CenterPosition);
 				if (exit != null)
@@ -130,10 +130,10 @@ namespace OpenRA.Mods.Common.Scripting
 
 		[Desc("Build the specified set of actors using a TD-style (per building) production queue. " +
 			"The function will return true if production could be started, false otherwise. " +
-			"If an actionFunc is given, it will be called as actionFunc(Actor[] actors) once " +
+			"If an actionFunc is given, it will be called as actionFunc(actors: actor[]) once " +
 			"production of all actors has been completed.  The actors array is guaranteed to " +
 			"only contain alive actors.")]
-		public bool Build(string[] actorTypes, LuaFunction actionFunc = null)
+		public bool Build(string[] actorTypes, [ScriptEmmyTypeOverride("fun(actors: actor[])")] LuaFunction actionFunc = null)
 		{
 			if (triggers.HasAnyCallbacksFor(Trigger.OnProduction))
 				return false;
@@ -187,8 +187,7 @@ namespace OpenRA.Mods.Common.Scripting
 			if (triggers.HasAnyCallbacksFor(Trigger.OnProduction))
 				return true;
 
-			return queues.Where(q => GetBuildableInfo(actorType).Queue.Contains(q.Info.Type))
-				.Any(q => q.AllQueued().Any());
+			return queues.Any(q => GetBuildableInfo(actorType).Queue.Contains(q.Info.Type) && q.AllQueued().Any());
 		}
 
 		BuildableInfo GetBuildableInfo(string actorType)
@@ -235,18 +234,18 @@ namespace OpenRA.Mods.Common.Scripting
 
 		[Desc("Build the specified set of actors using classic (RA-style) production queues. " +
 			"The function will return true if production could be started, false otherwise. " +
-			"If an actionFunc is given, it will be called as actionFunc(Actor[] actors) once " +
+			"If an actionFunc is given, it will be called as actionFunc(actors: actor[]) once " +
 			"production of all actors has been completed. The actors array is guaranteed to " +
 			"only contain alive actors. Note: This function will fail to work when called " +
 			"during the first tick.")]
-		public bool Build(string[] actorTypes, LuaFunction actionFunc = null)
+		public bool Build(string[] actorTypes, [ScriptEmmyTypeOverride("fun(actors: actor[])")] LuaFunction actionFunc = null)
 		{
 			var typeToQueueMap = new Dictionary<string, string>();
 			foreach (var actorType in actorTypes.Distinct())
 				typeToQueueMap.Add(actorType, GetBuildableInfo(actorType).Queue.First());
 
-			var queueTypes = typeToQueueMap.Values.Distinct();
-
+			// PERF: queues tend to live for a long time so cast to array.
+			var queueTypes = typeToQueueMap.Values.Distinct().ToArray();
 			if (queueTypes.Any(t => !queues.ContainsKey(t) || productionHandlers.ContainsKey(t)))
 				return false;
 
@@ -292,10 +291,10 @@ namespace OpenRA.Mods.Common.Scripting
 		{
 			var queue = GetBuildableInfo(actorType).Queue.First();
 
-			if (!queues.ContainsKey(queue))
+			if (!queues.TryGetValue(queue, out var cpq))
 				return true;
 
-			return productionHandlers.ContainsKey(queue) || queues[queue].AllQueued().Any();
+			return productionHandlers.ContainsKey(queue) || cpq.AllQueued().Any();
 		}
 
 		BuildableInfo GetBuildableInfo(string actorType)

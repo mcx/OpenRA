@@ -43,6 +43,8 @@
 	ValidTargets: AirborneActor
 	Warhead@1Dam: SpreadDamage
 		ValidTargets: AirborneActor
+		Versus:
+			Light: 100
 	Warhead@3Eff: CreateEffect
 		ImpactActors: false
 
@@ -105,10 +107,7 @@ HellfireAA:
 		RangeLimit: 7c0
 		CloseEnough: 0c600
 	Warhead@1Dam: SpreadDamage
-		Damage: 4000
-		Versus:
-			Wood: 75
-			Light: 75
+		Damage: 3000
 	Warhead@3Eff: CreateEffect
 		Explosions: med_explosion_air
 
@@ -153,9 +152,7 @@ Nike:
 		RangeLimit: 11c0
 		Speed: 341
 	Warhead@1Dam: SpreadDamage
-		Damage: 5000
-		Versus:
-			Light: 90
+		Damage: 4500
 	Warhead@3Eff: CreateEffect
 		Explosions: med_explosion_air
 		ImpactSounds: kaboom25.aud
@@ -167,10 +164,9 @@ RedEye:
 		Inaccuracy: 0
 		HorizontalRateOfTurn: 80
 		Speed: 298
+		RangeLimit: 9c0
 	Warhead@1Dam: SpreadDamage
-		Damage: 4000
-		Versus:
-			Light: 60
+		Damage: 2400
 
 Stinger:
 	Inherits: ^AntiGroundMissile
@@ -203,6 +199,9 @@ StingerAA:
 		CloseEnough: 298
 	Warhead@1Dam: SpreadDamage
 		ValidTargets: AirborneActor
+		Damage: 1650
+		Versus:
+			Light: 100
 	Warhead@3Eff: CreateEffect
 		Explosions: med_explosion_air
 		ImpactSounds: kaboom25.aud
@@ -211,6 +210,8 @@ APTusk:
 	Inherits: ^AntiGroundMissile
 	ReloadDelay: 60
 	Range: 6c0
+	Burst: 2
+	BurstDelays: 0
 	Projectile: Missile
 		Speed: 298
 		TrailImage: smokey
@@ -220,6 +221,7 @@ APTusk:
 APTusk.stnk:
 	Inherits: APTusk
 	ReloadDelay: 100
+	Burst: 1
 
 TorpTube:
 	ReloadDelay: 100
@@ -310,13 +312,13 @@ SubMissileAA:
 	ValidTargets: AirborneActor
 	Warhead@1Dam: SpreadDamage
 		ValidTargets: AirborneActor
-		Damage: 1500
+		Damage: 450
 		Versus:
-			Light: 30
+			Light: 100
 
 SCUD:
 	Inherits: ^AntiGroundMissile
-	ReloadDelay: 240
+	ReloadDelay: 215
 	Range: 10c0
 	MinRange: 4c0
 	Report: missile1.aud

@@ -10,9 +10,11 @@
 #endregion
 
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using OpenRA.FileSystem;
+using OpenRA.Mods.Common.MapGenerator;
 using OpenRA.Primitives;
 using OpenRA.Support;
 
@@ -44,7 +46,7 @@ namespace OpenRA.Mods.Common.Terrain
 		public DefaultTerrainTemplateInfo(ITerrainInfo terrainInfo, MiniYaml my)
 			: base(terrainInfo, my) { }
 
-		protected override TerrainTileInfo LoadTileInfo(ITerrainInfo terrainInfo, MiniYaml my)
+		protected override DefaultTerrainTileInfo LoadTileInfo(ITerrainInfo terrainInfo, MiniYaml my)
 		{
 			var tile = new DefaultTerrainTileInfo();
 			FieldLoader.Load(tile, my);
@@ -79,6 +81,10 @@ namespace OpenRA.Mods.Common.Terrain
 
 		[FieldLoader.Ignore]
 		public readonly IReadOnlyDictionary<ushort, TerrainTemplateInfo> Templates;
+		[FieldLoader.Ignore]
+		public readonly IReadOnlyDictionary<TemplateSegment, TerrainTemplateInfo> SegmentsToTemplates;
+		[FieldLoader.Ignore]
+		public readonly IReadOnlyDictionary<string, IEnumerable<MultiBrushInfo>> MultiBrushCollections;
 
 		[FieldLoader.Ignore]
 		public readonly TerrainTypeInfo[] TerrainInfo;
@@ -117,6 +123,20 @@ namespace OpenRA.Mods.Common.Terrain
 			// Templates
 			Templates = yaml["Templates"].ToDictionary().Values
 				.Select(y => (TerrainTemplateInfo)new DefaultTerrainTemplateInfo(this, y)).ToDictionary(t => t.Id);
+
+			SegmentsToTemplates = ImmutableDictionary.CreateRange(
+				Templates.Values.SelectMany(
+					template => template.Segments.Select(
+						segment => new KeyValuePair<TemplateSegment, TerrainTemplateInfo>(segment, template))));
+
+			MultiBrushCollections =
+				yaml.TryGetValue("MultiBrushCollections", out var collectionDefinitions)
+					? collectionDefinitions.ToDictionary()
+						.Select(kv => new KeyValuePair<string, IEnumerable<MultiBrushInfo>>(
+							kv.Key,
+							MultiBrushInfo.ParseCollection(kv.Value)))
+						.ToImmutableDictionary()
+					: ImmutableDictionary<string, IEnumerable<MultiBrushInfo>>.Empty;
 		}
 
 		public TerrainTypeInfo this[byte index] => TerrainInfo[index];
@@ -167,21 +187,20 @@ namespace OpenRA.Mods.Common.Terrain
 
 		string[] ITemplatedTerrainInfo.EditorTemplateOrder => EditorTemplateOrder;
 		IReadOnlyDictionary<ushort, TerrainTemplateInfo> ITemplatedTerrainInfo.Templates => Templates;
+		IReadOnlyDictionary<TemplateSegment, TerrainTemplateInfo> ITemplatedTerrainInfo.SegmentsToTemplates => SegmentsToTemplates;
+		IReadOnlyDictionary<string, IEnumerable<MultiBrushInfo>> ITemplatedTerrainInfo.MultiBrushCollections => MultiBrushCollections;
 
 		void ITerrainInfoNotifyMapCreated.MapCreated(Map map)
 		{
-			// Randomize PickAny tile variants
+			// Randomize PickAny tile variants.
 			var r = new MersenneTwister();
-			for (var j = map.Bounds.Top; j < map.Bounds.Bottom; j++)
+			foreach (var uv in map.AllCells.MapCoords)
 			{
-				for (var i = map.Bounds.Left; i < map.Bounds.Right; i++)
-				{
-					var type = map.Tiles[new MPos(i, j)].Type;
-					if (!Templates.TryGetValue(type, out var template) || !template.PickAny)
-						continue;
+				var type = map.Tiles[uv].Type;
+				if (!Templates.TryGetValue(type, out var template) || !template.PickAny)
+					continue;
 
-					map.Tiles[new MPos(i, j)] = new TerrainTile(type, (byte)r.Next(0, template.TilesCount));
-				}
+				map.Tiles[uv] = new TerrainTile(type, (byte)r.Next(0, template.TilesCount));
 			}
 		}
 	}

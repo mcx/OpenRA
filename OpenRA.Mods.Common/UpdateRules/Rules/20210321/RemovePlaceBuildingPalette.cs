@@ -27,15 +27,16 @@ namespace OpenRA.Mods.Common.UpdateRules.Rules
 		public override IEnumerable<string> AfterUpdate(ModData modData)
 		{
 			if (locations.Count > 0)
-				yield return "The *Palette fields have been removed from the *PlaceBuildingPreview traits.\n" +
-				             "You may wish to inspect the following definitions and define new Alpha or\n" +
-				             "LineBuildSegmentAlpha properties as appropriate to recreate transparency effects:\n" +
-				             UpdateUtils.FormatMessageList(locations);
+				yield return
+					"The *Palette fields have been removed from the *PlaceBuildingPreview traits.\n" +
+					"You may wish to inspect the following definitions and define new Alpha or\n" +
+					"LineBuildSegmentAlpha properties as appropriate to recreate transparency effects:\n" +
+					UpdateUtils.FormatMessageList(locations);
 
 			locations.Clear();
 		}
 
-		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNode actorNode)
+		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNodeBuilder actorNode)
 		{
 			var removed = 0;
 			foreach (var node in actorNode.ChildrenMatching("ActorPreviewPlaceBuildingPreview"))
@@ -63,7 +64,7 @@ namespace OpenRA.Mods.Common.UpdateRules.Rules
 			}
 
 			if (removed > 0)
-				locations.Add($"{actorNode.Key} ({actorNode.Location.Filename})");
+				locations.Add($"{actorNode.Key} ({actorNode.Location.Name})");
 
 			yield break;
 		}

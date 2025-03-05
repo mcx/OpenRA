@@ -28,7 +28,7 @@ namespace OpenRA.Mods.Common.Traits
 			CancelUnbuildableItems();
 
 			var item = Queue.FirstOrDefault(i => !i.Paused);
-			if (item == null)
+			if (item == null || allProductionPaused)
 				return;
 
 			var before = item.RemainingTime;
@@ -54,6 +54,12 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			// Ignore `hasPriority` as it's not relevant in parallel production context.
 			base.BeginProduction(item, false);
+		}
+
+		protected override void PauseProduction(string itemName, bool paused)
+		{
+			foreach (var item in Queue.Where(a => a.Item == itemName))
+				item.Pause(paused);
 		}
 
 		public override int RemainingTimeActual(ProductionItem item)

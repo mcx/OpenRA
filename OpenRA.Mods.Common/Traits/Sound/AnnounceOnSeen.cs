@@ -26,6 +26,7 @@ namespace OpenRA.Mods.Common.Traits.Sound
 		[Desc("Speech notification to play.")]
 		public readonly string Notification = null;
 
+		[FluentReference(optional: true)]
 		[Desc("Text notification to display.")]
 		public readonly string TextNotification = null;
 
@@ -43,7 +44,7 @@ namespace OpenRA.Mods.Common.Traits.Sound
 		public AnnounceOnSeen(Actor self, AnnounceOnSeenInfo info)
 		{
 			Info = info;
-			radarPings = Exts.Lazy(() => self.World.WorldActor.Trait<RadarPings>());
+			radarPings = Exts.Lazy(self.World.WorldActor.Trait<RadarPings>);
 		}
 
 		public void OnDiscovered(Actor self, Player discoverer, bool playNotification)
@@ -61,7 +62,7 @@ namespace OpenRA.Mods.Common.Traits.Sound
 				Game.Sound.PlayNotification(self.World.Map.Rules, discoverer, "Speech", Info.Notification, discoverer.Faction.InternalName);
 
 			if (discoverer != null)
-				TextNotificationsManager.AddTransientLine(Info.TextNotification, discoverer);
+				TextNotificationsManager.AddTransientLine(discoverer, Info.TextNotification);
 
 			// Radar notification
 			if (Info.PingRadar)

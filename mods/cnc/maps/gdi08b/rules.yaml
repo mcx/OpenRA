@@ -5,7 +5,7 @@ World:
 		StartingMusic: march
 		VictoryMusic: gdi_win1
 	MissionData:
-		Briefing: Dr. Mobius is establishing a Hospital to treat the civilians in the region who are falling ill due to exposure to Tiberium.\n\nProtect Mobius and the civilians.\n\nEliminate Nod presence in the area.
+		Briefing: Dr. Mobius is setting up a Hospital to treat civilians in the region who are falling ill from Tiberium exposure.\n\nProtect Mobius and the civilians.\n\nEliminate Nod presence in the area.
 		BackgroundVideo: tbrinfo1.vqa
 		StartVideo: desolat.vqa
 		LossVideo: gdilose.vqa
@@ -153,11 +153,11 @@ CYCL:
 
 SBAG:
 	Buildable:
-		Queue: Defence.GDI, Defence.Nod
+		Queue: Support.GDI, Support.Nod
 
 GUN:
 	Buildable:
-		Queue: Defence.GDI, Defence.Nod
+		Queue: Support.GDI, Support.Nod
 
 airstrike.proxy:
 	AirstrikePower:
@@ -168,7 +168,7 @@ HQ:
 	Tooltip:
 	-AirstrikePower:
 	Buildable:
-		Description: Provides an overview of the battlefield.\n  Requires power to operate.
+		Description: actor-hq-description
 
 ^CivInfantry:
 	Health:
@@ -178,5 +178,5 @@ HQ:
 		MaxMoveDelay: 1000
 	ActorLostNotification:
 		Notification: CivilianKilled
-		TextNotification: Civilian killed.
+		TextNotification: civilian-killed
 		NotifyAll: true

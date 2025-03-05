@@ -11,14 +11,14 @@
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Eluant;
 using Eluant.ObjectBinding;
 using OpenRA.Scripting;
 
 namespace OpenRA
 {
-	public readonly struct WPos : IScriptBindable, ILuaAdditionBinding, ILuaSubtractionBinding, ILuaEqualityBinding, ILuaTableBinding, IEquatable<WPos>
+	public readonly struct WPos : IEquatable<WPos>, IScriptBindable,
+		ILuaAdditionBinding, ILuaSubtractionBinding, ILuaEqualityBinding, ILuaTableBinding, ILuaToStringBinding
 	{
 		public readonly int X, Y, Z;
 
@@ -83,7 +83,8 @@ namespace OpenRA
 		public LuaValue Add(LuaRuntime runtime, LuaValue left, LuaValue right)
 		{
 			if (!left.TryGetClrValue(out WPos a) || !right.TryGetClrValue(out WVec b))
-				throw new LuaException($"Attempted to call WPos.Add(WPos, WVec) with invalid arguments ({left.WrappedClrType().Name}, {right.WrappedClrType().Name})");
+				throw new LuaException("Attempted to call WPos.Add(WPos, WVec) with invalid arguments " +
+					$"({left.WrappedClrType().Name}, {right.WrappedClrType().Name})");
 
 			return new LuaCustomClrObject(a + b);
 		}
@@ -92,7 +93,8 @@ namespace OpenRA
 		{
 			var rightType = right.WrappedClrType();
 			if (!left.TryGetClrValue(out WPos a))
-				throw new LuaException($"Attempted to call WPos.Subtract(WPos, (WPos|WVec)) with invalid arguments ({left.WrappedClrType().Name}, {rightType.Name})");
+				throw new LuaException("Attempted to call WPos.Subtract(WPos, (WPos|WVec)) with invalid arguments " +
+					$"({left.WrappedClrType().Name}, {rightType.Name})");
 
 			if (rightType == typeof(WPos))
 			{
@@ -105,7 +107,8 @@ namespace OpenRA
 				return new LuaCustomClrObject(a - b);
 			}
 
-			throw new LuaException($"Attempted to call WPos.Subtract(WPos, (WPos|WVec)) with invalid arguments ({left.WrappedClrType().Name}, {rightType.Name})");
+			throw new LuaException("Attempted to call WPos.Subtract(WPos, (WPos|WVec)) with invalid arguments " +
+				$"({left.WrappedClrType().Name}, {rightType.Name})");
 		}
 
 		public LuaValue Equals(LuaRuntime runtime, LuaValue left, LuaValue right)
@@ -132,6 +135,8 @@ namespace OpenRA
 			set => throw new LuaException("WPos is read-only. Use WPos.New to create a new value");
 		}
 
+		public LuaValue ToString(LuaRuntime runtime) => ToString();
+
 		#endregion
 	}
 
@@ -139,19 +144,20 @@ namespace OpenRA
 	{
 		public static WPos Average(this IEnumerable<WPos> source)
 		{
-			var length = source.Count();
-			if (length == 0)
-				return WPos.Zero;
-
+			var length = 0;
 			var x = 0L;
 			var y = 0L;
 			var z = 0L;
 			foreach (var pos in source)
 			{
+				length++;
 				x += pos.X;
 				y += pos.Y;
 				z += pos.Z;
 			}
+
+			if (length == 0)
+				return WPos.Zero;
 
 			x /= length;
 			y /= length;

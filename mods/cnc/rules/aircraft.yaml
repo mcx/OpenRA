@@ -4,14 +4,14 @@ TRAN:
 	Valued:
 		Cost: 750
 	Tooltip:
-		Name: Chinook Transport
+		Name: actor-tran.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Buildable:
 		BuildPaletteOrder: 10
 		Prerequisites: hpad
 		Queue: Aircraft.GDI, Aircraft.Nod
-		Description: Fast Infantry Transport Helicopter.\n  Unarmed
+		Description: actor-tran.description
 	Aircraft:
 		TurnSpeed: 20
 		Speed: 150
@@ -23,6 +23,12 @@ TRAN:
 	RevealsShroud:
 		Range: 10c0
 		Type: GroundPosition
+	Encyclopedia:
+		Description: actor-tran.encyclopedia
+		Order: 230
+		Scale: 3
+		Category: Aircraft
+		PreviewOwner: GDI
 	WithIdleOverlay@ROTOR1AIR:
 		Offset: 597,0,85
 		Sequence: rotor
@@ -56,14 +62,14 @@ HELI:
 	Valued:
 		Cost: 1200
 	Tooltip:
-		Name: Apache Longbow
+		Name: actor-heli.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Buildable:
 		BuildPaletteOrder: 20
 		Prerequisites: hpad, anyhq, ~techlevel.medium
 		Queue: Aircraft.Nod
-		Description: Helicopter Gunship with Chainguns.\n  Strong vs Infantry, Light Vehicles and\n  Aircraft\n  Weak vs Tanks
+		Description: actor-heli.description
 	Aircraft:
 		TurnSpeed: 28
 		Speed: 180
@@ -85,6 +91,12 @@ HELI:
 		LocalOffset: 128,-213,-85, 128,213,-85
 		MuzzleSequence: muzzle
 		PauseOnCondition: !ammo
+	Encyclopedia:
+		Description: actor-heli.encyclopedia
+		Order: 240
+		Scale: 3
+		Category: Aircraft
+		PreviewOwner: NodUnits
 	AttackMove:
 		Voice: Attack
 	AutoTarget:
@@ -127,14 +139,14 @@ ORCA:
 	Valued:
 		Cost: 1200
 	Tooltip:
-		Name: Orca
+		Name: actor-orca.name
 	UpdatesPlayerStatistics:
 		AddToArmyValue: true
 	Buildable:
 		BuildPaletteOrder: 20
 		Prerequisites: hpad, anyhq, ~techlevel.medium
 		Queue: Aircraft.GDI
-		Description: Helicopter Gunship with AG Missiles.\n  Strong vs Buildings, Tanks\n  Weak vs Infantry
+		Description: actor-orca.description
 	Aircraft:
 		TurnSpeed: 28
 		Speed: 186
@@ -153,6 +165,12 @@ ORCA:
 		Weapon: OrcaAAMissiles
 		LocalOffset: 427,-171,-213, 427,171,-213
 		PauseOnCondition: !ammo
+	Encyclopedia:
+		Description: actor-orca.encyclopedia
+		Order: 250
+		Scale: 3
+		Category: Aircraft
+		PreviewOwner: GDI
 	AttackMove:
 		Voice: Attack
 	AutoTarget:
@@ -185,7 +203,7 @@ C17:
 	Inherits@TRANSPORT: ^Transport
 	Interactable:
 	Tooltip:
-		Name: Supply Aircraft
+		Name: actor-c17-name
 	Valued:
 		Cost: 2000
 	UpdatesPlayerStatistics:
@@ -208,6 +226,8 @@ C17:
 	Cloak:
 		InitialDelay: 0
 		CloakDelay: 0
+		CloakStyle: Palette
+		CloakedPalette: cloak
 		DetectionTypes: C17
 		RequiresCondition: global-C17-stealth
 	Contrail@1:
@@ -232,7 +252,7 @@ A10:
 	Inherits: ^Plane
 	Interactable:
 	Tooltip:
-		Name: A10 Bomber
+		Name: actor-a10-name
 	Valued:
 		Cost: 2000
 	UpdatesPlayerStatistics:
@@ -266,7 +286,7 @@ A10:
 TRAN.Husk:
 	Inherits: ^HelicopterHusk
 	Tooltip:
-		Name: Chinook Transport
+		Name: actor-tran-husk-name
 	Aircraft:
 		TurnSpeed: 20
 		Speed: 140
@@ -285,7 +305,7 @@ TRAN.Husk:
 HELI.Husk:
 	Inherits: ^HelicopterHusk
 	Tooltip:
-		Name: Apache Longbow
+		Name: actor-heli-husk-name
 	Aircraft:
 		TurnSpeed: 16
 		Speed: 186
@@ -301,7 +321,7 @@ HELI.Husk:
 ORCA.Husk:
 	Inherits: ^HelicopterHusk
 	Tooltip:
-		Name: Orca
+		Name: actor-orca-husk-name
 	Aircraft:
 		TurnSpeed: 16
 		Speed: 186

@@ -49,6 +49,7 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Speech notification to play when setting a new rallypoint.")]
 		public readonly string Notification = null;
 
+		[FluentReference(optional: true)]
 		[Desc("Text notification to display when setting a new rallypoint.")]
 		public readonly string TextNotification = null;
 
@@ -104,7 +105,7 @@ namespace OpenRA.Mods.Common.Traits
 			if (order.OrderID == OrderID)
 			{
 				Game.Sound.PlayNotification(self.World.Map.Rules, self.Owner, "Speech", Info.Notification, self.Owner.Faction.InternalName);
-				TextNotificationsManager.AddTransientLine(Info.TextNotification, self.Owner);
+				TextNotificationsManager.AddTransientLine(self.Owner, Info.TextNotification);
 
 				return new Order(order.OrderID, self, target, queued)
 				{
@@ -125,6 +126,9 @@ namespace OpenRA.Mods.Common.Traits
 			}
 
 			if (order.OrderString != OrderID)
+				return;
+
+			if (!order.Target.IsValidFor(self))
 				return;
 
 			if (!order.Queued)
@@ -179,10 +183,8 @@ namespace OpenRA.Mods.Common.Traits
 					if (modifiers.HasModifier(TargetModifiers.ForceAttack) && !string.IsNullOrEmpty(info.ForceSetType))
 					{
 						var closest = self.World.Selection.Actors
-							.Select<Actor, (Actor Actor, RallyPoint RallyPoint)>(a => (a, a.TraitOrDefault<RallyPoint>()))
-							.Where(x => x.RallyPoint != null && x.RallyPoint.Info.ForceSetType == info.ForceSetType)
-							.OrderBy(x => (location - x.Actor.Location).LengthSquared)
-							.FirstOrDefault().Actor;
+							.Where(a => !a.IsDead && a.IsInWorld && a.TraitOrDefault<RallyPoint>()?.Info.ForceSetType == info.ForceSetType)
+							.ClosestToIgnoringPath(target.CenterPosition);
 
 						ForceSet = closest == self;
 					}

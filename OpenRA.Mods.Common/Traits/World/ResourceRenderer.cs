@@ -39,6 +39,7 @@ namespace OpenRA.Mods.Common.Traits
 
 			[FieldLoader.Require]
 			[Desc("Resource name used by tooltips.")]
+			[FluentReference]
 			public readonly string Name = null;
 
 			public ResourceTypeInfo(MiniYaml yaml)
@@ -54,7 +55,7 @@ namespace OpenRA.Mods.Common.Traits
 		protected static object LoadResourceTypes(MiniYaml yaml)
 		{
 			var ret = new Dictionary<string, ResourceTypeInfo>();
-			var resources = yaml.Nodes.FirstOrDefault(n => n.Key == "ResourceTypes");
+			var resources = yaml.NodeWithKeyOrDefault("ResourceTypes");
 			if (resources != null)
 				foreach (var r in resources.Value.Nodes)
 					ret[r.Key] = new ResourceTypeInfo(r.Value);
@@ -266,7 +267,14 @@ namespace OpenRA.Mods.Common.Traits
 
 		protected virtual string GetRenderedResourceType(CPos cell) { return RenderContents[cell].Type; }
 
-		protected virtual string GetRenderedResourceTooltip(CPos cell) { return RenderContents[cell].Info?.Name; }
+		protected virtual string GetRenderedResourceTooltip(CPos cell)
+		{
+			var info = RenderContents[cell].Info;
+			if (info == null)
+				return null;
+
+			return FluentProvider.GetMessage(info.Name);
+		}
 
 		IEnumerable<string> IResourceRenderer.ResourceTypes => Info.ResourceTypes.Keys;
 

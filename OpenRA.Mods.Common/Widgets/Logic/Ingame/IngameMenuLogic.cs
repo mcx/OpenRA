@@ -21,101 +21,122 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 {
 	public class IngameMenuLogic : ChromeLogic
 	{
-		[TranslationReference]
+		[FluentReference]
 		const string Leave = "menu-ingame.leave";
 
-		[TranslationReference]
+		[FluentReference]
 		const string AbortMission = "menu-ingame.abort";
 
-		[TranslationReference]
+		[FluentReference]
 		const string LeaveMissionTitle = "dialog-leave-mission.title";
 
-		[TranslationReference]
+		[FluentReference]
 		const string LeaveMissionPrompt = "dialog-leave-mission.prompt";
 
-		[TranslationReference]
+		[FluentReference]
 		const string LeaveMissionAccept = "dialog-leave-mission.confirm";
 
-		[TranslationReference]
+		[FluentReference]
 		const string LeaveMissionCancel = "dialog-leave-mission.cancel";
 
-		[TranslationReference]
+		[FluentReference]
 		const string RestartButton = "menu-ingame.restart";
 
-		[TranslationReference]
+		[FluentReference]
 		const string RestartMissionTitle = "dialog-restart-mission.title";
 
-		[TranslationReference]
+		[FluentReference]
 		const string RestartMissionPrompt = "dialog-restart-mission.prompt";
 
-		[TranslationReference]
+		[FluentReference]
 		const string RestartMissionAccept = "dialog-restart-mission.confirm";
 
-		[TranslationReference]
+		[FluentReference]
 		const string RestartMissionCancel = "dialog-restart-mission.cancel";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SurrenderButton = "menu-ingame.surrender";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SurrenderTitle = "dialog-surrender.title";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SurrenderPrompt = "dialog-surrender.prompt";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SurrenderAccept = "dialog-surrender.confirm";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SurrenderCancel = "dialog-surrender.cancel";
 
-		[TranslationReference]
+		[FluentReference]
 		const string LoadGameButton = "menu-ingame.load-game";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SaveGameButton = "menu-ingame.save-game";
 
-		[TranslationReference]
+		[FluentReference]
 		const string MusicButton = "menu-ingame.music";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SettingsButton = "menu-ingame.settings";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ReturnToMap = "menu-ingame.return-to-map";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Resume = "menu-ingame.resume";
 
-		[TranslationReference]
+		[FluentReference]
 		const string SaveMapButton = "menu-ingame.save-map";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ErrorMaxPlayerTitle = "dialog-error-max-player.title";
 
-		[TranslationReference("players", "max")]
+		[FluentReference("players", "max")]
 		const string ErrorMaxPlayerPrompt = "dialog-error-max-player.prompt";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ErrorMaxPlayerAccept = "dialog-error-max-player.confirm";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ExitMapButton = "menu-ingame.exit-map";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ExitMapEditorTitle = "dialog-exit-map-editor.title";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ExitMapEditorPromptUnsaved = "dialog-exit-map-editor.prompt-unsaved";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ExitMapEditorPromptDeleted = "dialog-exit-map-editor.prompt-deleted";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ExitMapEditorAnywayConfirm = "dialog-exit-map-editor.confirm-anyway";
 
-		[TranslationReference]
+		[FluentReference]
 		const string ExitMapEditorConfirm = "dialog-exit-map-editor.confirm";
+
+		[FluentReference]
+		const string PlayMapWarningTitle = "dialog-play-map-warning.title";
+
+		[FluentReference]
+		const string PlayMapWarningPrompt = "dialog-play-map-warning.prompt";
+
+		[FluentReference]
+		const string PlayMapWarningCancel = "dialog-play-map-warning.cancel";
+
+		[FluentReference]
+		const string ExitToMapEditorTitle = "dialog-exit-to-map-editor.title";
+
+		[FluentReference]
+		const string ExitToMapEditorPrompt = "dialog-exit-to-map-editor.prompt";
+
+		[FluentReference]
+		const string ExitToMapEditorConfirm = "dialog-exit-to-map-editor.confirm";
+
+		[FluentReference]
+		const string ExitToMapEditorCancel = "dialog-exit-to-map-editor.cancel";
 
 		readonly Widget menu;
 		readonly Widget buttonContainer;
@@ -127,11 +148,13 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		readonly Action onExit;
 		readonly World world;
 		readonly WorldRenderer worldRenderer;
-		readonly MenuPaletteEffect mpe;
+		readonly MenuPostProcessEffect mpe;
 		readonly bool isSinglePlayer;
 		readonly bool hasError;
 		bool leaving;
 		bool hideMenu;
+
+		static bool lastGameEditor = false;
 
 		[ObjectCreator.UseCtor]
 		public IngameMenuLogic(Widget widget, ModData modData, World world, Action onExit, WorldRenderer worldRenderer,
@@ -145,6 +168,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var buttonHandlers = new Dictionary<string, Action>
 			{
 				{ "ABORT_MISSION", CreateAbortMissionButton },
+				{ "BACK_TO_EDITOR", CreateBackToEditorButton },
 				{ "RESTART", CreateRestartButton },
 				{ "SURRENDER", CreateSurrenderButton },
 				{ "LOAD_GAME", CreateLoadGameButton },
@@ -153,16 +177,15 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				{ "SETTINGS", CreateSettingsButton },
 				{ "RESUME", CreateResumeButton },
 				{ "SAVE_MAP", CreateSaveMapButton },
+				{ "PLAY_MAP", CreatePlayMapButton },
 				{ "EXIT_EDITOR", CreateExitEditorButton }
 			};
 
 			isSinglePlayer = !world.LobbyInfo.GlobalSettings.Dedicated && world.LobbyInfo.NonBotClients.Count() == 1;
 
 			menu = widget.Get("INGAME_MENU");
-			mpe = world.WorldActor.TraitOrDefault<MenuPaletteEffect>();
+			mpe = world.WorldActor.TraitOrDefault<MenuPostProcessEffect>();
 			mpe?.Fade(mpe.Info.MenuEffect);
-
-			menu.Get<LabelWidget>("VERSION_LABEL").Text = modData.Manifest.Metadata.Version;
 
 			buttonContainer = menu.Get("MENU_BUTTONS");
 			buttonTemplate = buttonContainer.Get<ButtonWidget>("BUTTON_TEMPLATE");
@@ -200,7 +223,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				var gameInfoPanel = Game.LoadWidget(world, "GAME_INFO_PANEL", panelRoot, new WidgetArgs()
 				{
 					{ "initialPanel", initialPanel },
-					{ "hideMenu", requestHideMenu }
+					{ "hideMenu", requestHideMenu },
+					{ "closeMenu", CloseMenu },
 				});
 
 				gameInfoPanel.IsVisible = () => !hideMenu;
@@ -217,23 +241,34 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				{
 					var faction = world.LocalPlayer?.Faction.InternalName;
 					Game.Sound.PlayNotification(world.Map.Rules, null, "Speech", moi.LeaveNotification, faction);
-					TextNotificationsManager.AddTransientLine(moi.LeaveTextNotification, null);
+					TextNotificationsManager.AddTransientLine(null, moi.LeaveTextNotification);
 				}
 			}
 
 			var iop = world.WorldActor.TraitsImplementing<IObjectivesPanel>().FirstOrDefault();
 			var exitDelay = iop?.ExitDelay ?? 0;
-			var mpe = world.WorldActor.TraitOrDefault<MenuPaletteEffect>();
+			var mpe = world.WorldActor.TraitOrDefault<MenuPostProcessEffect>();
+
+			// HACK: Opening up skirmish menu can mess up the OrderManager.
+			if (!Game.IsCurrentWorld(world))
+			{
+				Game.Disconnect();
+				Ui.ResetAll();
+				Game.LoadShellMap();
+				return;
+			}
+
 			if (mpe != null)
 			{
 				Game.RunAfterDelay(exitDelay, () =>
 				{
 					if (Game.IsCurrentWorld(world))
-						mpe.Fade(MenuPaletteEffect.EffectType.Black);
+						mpe.Fade(MenuPostProcessEffect.EffectType.Black);
 				});
 				exitDelay += 40 * mpe.Info.FadeLength;
 			}
 
+			lastGameEditor = false;
 			Game.RunAfterDelay(exitDelay, () =>
 			{
 				if (!Game.IsCurrentWorld(world))
@@ -253,14 +288,14 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		void CloseMenu()
 		{
 			Ui.CloseWindow();
-			mpe?.Fade(MenuPaletteEffect.EffectType.None);
+			mpe?.Fade(MenuPostProcessEffect.EffectType.None);
 			onExit();
 			Ui.ResetTooltips();
 		}
 
-		ButtonWidget AddButton(string id, string text)
+		ButtonWidget AddButton(string id, string label)
 		{
-			var button = buttonTemplate.Clone() as ButtonWidget;
+			var button = buttonTemplate.Clone();
 			var lastButton = buttons.LastOrDefault();
 			if (lastButton != null)
 			{
@@ -270,8 +305,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 			button.Id = id;
 			button.IsDisabled = () => leaving;
-			var translation = TranslationProvider.GetString(text);
-			button.GetText = () => translation;
+			var text = FluentProvider.GetMessage(label);
+			button.GetText = () => text;
 			buttonContainer.AddChild(button);
 			buttons.Add(button);
 
@@ -284,8 +319,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				return;
 
 			var button = AddButton("ABORT_MISSION", world.IsGameOver
-				? TranslationProvider.GetString(Leave)
-				: TranslationProvider.GetString(AbortMission));
+				? FluentProvider.GetMessage(Leave)
+				: FluentProvider.GetMessage(AbortMission));
 
 			button.OnClick = () =>
 			{
@@ -295,8 +330,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 					title: LeaveMissionTitle,
 					text: LeaveMissionPrompt,
 					onConfirm: () => { OnQuit(world); leaving = true; },
-					onCancel: ShowMenu,
 					confirmText: LeaveMissionAccept,
+					onCancel: ShowMenu,
 					cancelText: LeaveMissionCancel);
 			};
 		}
@@ -315,7 +350,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				if (mpe != null)
 				{
 					if (Game.IsCurrentWorld(world))
-						mpe.Fade(MenuPaletteEffect.EffectType.Black);
+						mpe.Fade(MenuPostProcessEffect.EffectType.Black);
 					exitDelay += 40 * mpe.Info.FadeLength;
 				}
 
@@ -331,8 +366,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 					title: RestartMissionTitle,
 					text: RestartMissionPrompt,
 					onConfirm: OnRestart,
-					onCancel: ShowMenu,
 					confirmText: RestartMissionAccept,
+					onCancel: ShowMenu,
 					cancelText: RestartMissionCancel);
 			};
 		}
@@ -357,8 +392,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 					title: SurrenderTitle,
 					text: SurrenderPrompt,
 					onConfirm: OnSurrender,
-					onCancel: ShowMenu,
 					confirmText: SurrenderAccept,
+					onCancel: ShowMenu,
 					cancelText: SurrenderCancel);
 			};
 		}
@@ -459,7 +494,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 					ConfirmationDialogs.ButtonPrompt(modData,
 						title: ErrorMaxPlayerTitle,
 						text: ErrorMaxPlayerPrompt,
-						textArguments: Translation.Arguments("players", playerCount, "max", MapPlayers.MaximumPlayerCount),
+						textArguments: new object[] { "players", playerCount, "max", MapPlayers.MaximumPlayerCount },
 						onConfirm: ShowMenu,
 						confirmText: ErrorMaxPlayerAccept);
 
@@ -478,35 +513,134 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			};
 		}
 
+		void CreatePlayMapButton()
+		{
+			if (world.Type != WorldType.Editor)
+				return;
+
+			var actionManager = world.WorldActor.Trait<EditorActionManager>();
+			var button = AddButton("PLAY_MAP", "Play Map");
+			button.IsDisabled = () => leaving || string.IsNullOrEmpty(world.Map.Package.Name);
+			button.OnClick = () =>
+				{
+					hideMenu = true;
+					var uid = modData.MapCache.GetUpdatedMap(world.Map.Uid);
+					var map = uid == null ? null : modData.MapCache[uid];
+					if (map == null || (map.Visibility != MapVisibility.Lobby && map.Visibility != MapVisibility.MissionSelector))
+					{
+						ConfirmationDialogs.ButtonPrompt(modData,
+							title: PlayMapWarningTitle,
+							text: PlayMapWarningPrompt,
+							onCancel: ShowMenu,
+							cancelText: PlayMapWarningCancel);
+
+						return;
+					}
+
+					ExitEditor(actionManager, () =>
+					{
+						lastGameEditor = true;
+
+						Ui.CloseWindow();
+						Ui.ResetTooltips();
+						void CloseMenu()
+						{
+							mpe?.Fade(MenuPostProcessEffect.EffectType.None);
+							onExit();
+						}
+
+						if (map.Visibility == MapVisibility.Lobby)
+						{
+							// HACK: Server lobby should be usable without a server.
+							ConnectionLogic.Connect(Game.CreateLocalServer(uid),
+								"",
+								() => Game.OpenWindow("SERVER_LOBBY", new WidgetArgs
+								{
+									{ "onExit", CloseMenu },
+									{ "onStart", () => { } },
+									{ "skirmishMode", true }
+								}),
+								() => Game.CloseServer());
+						}
+						else if (map.Visibility == MapVisibility.MissionSelector)
+						{
+							Game.OpenWindow("MISSIONBROWSER_PANEL", new WidgetArgs
+							{
+								{ "onExit", CloseMenu },
+								{ "onStart", () => { } },
+								{ "initialMap", uid }
+							});
+						}
+					});
+				};
+		}
+
+		void CreateBackToEditorButton()
+		{
+			if (world.Type != WorldType.Regular || !lastGameEditor)
+				return;
+
+			AddButton("BACK_TO_EDITOR", "Back To Editor")
+				.OnClick = () =>
+				{
+					hideMenu = true;
+					void OnConfirm()
+					{
+						lastGameEditor = false;
+						var map = modData.MapCache.GetUpdatedMap(world.Map.Uid);
+						if (map == null)
+							Game.LoadShellMap();
+						else
+						{
+							DiscordService.UpdateStatus(DiscordState.InMapEditor);
+							Game.LoadEditor(map);
+						}
+					}
+
+					ConfirmationDialogs.ButtonPrompt(modData,
+						title: ExitToMapEditorTitle,
+						text: ExitToMapEditorPrompt,
+						onConfirm: OnConfirm,
+						confirmText: ExitToMapEditorConfirm,
+						onCancel: ShowMenu,
+						cancelText: ExitToMapEditorCancel);
+				};
+		}
+
 		void CreateExitEditorButton()
 		{
 			if (world.Type != WorldType.Editor)
 				return;
 
 			var actionManager = world.WorldActor.Trait<EditorActionManager>();
-			var button = AddButton("EXIT_EDITOR", ExitMapButton);
+			AddButton("EXIT_EDITOR", ExitMapButton)
+				.OnClick = () => ExitEditor(actionManager, () => OnQuit(world));
+		}
 
-			// Show dialog only if updated since last save
-			button.OnClick = () =>
+		void ExitEditor(EditorActionManager actionManager, Action onSuccess)
+		{
+			var deletedOrUnavailable = false;
+			if (!string.IsNullOrEmpty(world.Map.Package.Name))
 			{
 				var map = modData.MapCache.GetUpdatedMap(world.Map.Uid);
-				var deletedOrUnavailable = map == null || modData.MapCache[map].Status != MapStatus.Available;
-				if (actionManager.HasUnsavedItems() || deletedOrUnavailable)
-				{
-					hideMenu = true;
-					ConfirmationDialogs.ButtonPrompt(modData,
-						title: ExitMapEditorTitle,
-						text: deletedOrUnavailable ? ExitMapEditorPromptDeleted : ExitMapEditorPromptUnsaved,
-						confirmText: deletedOrUnavailable ? ExitMapEditorAnywayConfirm : ExitMapEditorConfirm,
-						onConfirm: () => { OnQuit(world); leaving = true; },
-						onCancel: ShowMenu);
-				}
-				else
-				{
-					OnQuit(world);
-					leaving = true;
-				}
-			};
+				deletedOrUnavailable = map == null || modData.MapCache[map].Status != MapStatus.Available;
+			}
+
+			if (actionManager.HasUnsavedItems() || deletedOrUnavailable)
+			{
+				hideMenu = true;
+				ConfirmationDialogs.ButtonPrompt(modData,
+					title: ExitMapEditorTitle,
+					text: deletedOrUnavailable ? ExitMapEditorPromptDeleted : ExitMapEditorPromptUnsaved,
+					onConfirm: () => { onSuccess(); leaving = true; },
+					confirmText: deletedOrUnavailable ? ExitMapEditorAnywayConfirm : ExitMapEditorConfirm,
+					onCancel: ShowMenu);
+			}
+			else
+			{
+				onSuccess();
+				leaving = true;
+			}
 		}
 	}
 }

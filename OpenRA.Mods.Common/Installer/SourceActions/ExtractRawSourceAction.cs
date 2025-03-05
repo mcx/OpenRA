@@ -12,7 +12,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using OpenRA.Mods.Common.Widgets.Logic;
 using FS = OpenRA.FileSystem.FileSystem;
 
@@ -23,7 +22,9 @@ namespace OpenRA.Mods.Common.Installer
 		public void RunActionOnSource(MiniYaml actionYaml, string path, ModData modData, List<string> extracted, Action<string> updateMessage)
 		{
 			// Yaml path may be specified relative to a named directory (e.g. ^SupportDir) or the detected source path
-			var sourcePath = actionYaml.Value.StartsWith("^") ? Platform.ResolvePath(actionYaml.Value) : FS.ResolveCaseInsensitivePath(Path.Combine(path, actionYaml.Value));
+			var sourcePath = actionYaml.Value.StartsWith('^')
+				? Platform.ResolvePath(actionYaml.Value)
+				: FS.ResolveCaseInsensitivePath(Path.Combine(path, actionYaml.Value));
 
 			using (var source = File.OpenRead(sourcePath))
 			{
@@ -37,14 +38,14 @@ namespace OpenRA.Mods.Common.Installer
 						continue;
 					}
 
-					var offsetNode = node.Value.Nodes.FirstOrDefault(n => n.Key == "Offset");
+					var offsetNode = node.Value.NodeWithKeyOrDefault("Offset");
 					if (offsetNode == null)
 					{
 						Log.Write("install", "Skipping entry with missing Offset definition " + targetPath);
 						continue;
 					}
 
-					var lengthNode = node.Value.Nodes.FirstOrDefault(n => n.Key == "Length");
+					var lengthNode = node.Value.NodeWithKeyOrDefault("Length");
 					if (lengthNode == null)
 					{
 						Log.Write("install", "Skipping entry with missing Length definition " + targetPath);
@@ -60,9 +61,12 @@ namespace OpenRA.Mods.Common.Installer
 
 					Action<long> onProgress = null;
 					if (length < InstallFromSourceLogic.ShowPercentageThreshold)
-						updateMessage(TranslationProvider.GetString(InstallFromSourceLogic.Extracing, Translation.Arguments("filename", displayFilename)));
+						updateMessage(FluentProvider.GetMessage(InstallFromSourceLogic.Extracting,
+							"filename", displayFilename));
 					else
-						onProgress = b => updateMessage(TranslationProvider.GetString(InstallFromSourceLogic.ExtractingProgress, Translation.Arguments("filename", displayFilename, "progress", 100 * b / length)));
+						onProgress = b => updateMessage(FluentProvider.GetMessage(InstallFromSourceLogic.ExtractingProgress,
+							"filename", displayFilename,
+							"progress", 100 * b / length));
 
 					using (var target = File.OpenWrite(targetPath))
 					{

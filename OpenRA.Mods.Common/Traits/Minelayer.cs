@@ -20,7 +20,7 @@ using OpenRA.Traits;
 
 namespace OpenRA.Mods.Common.Traits
 {
-	public class MinelayerInfo : TraitInfo, Requires<RearmableInfo>
+	public class MinelayerInfo : TraitInfo
 	{
 		[ActorReference]
 		public readonly string Mine = "minv";
@@ -63,6 +63,12 @@ namespace OpenRA.Mods.Common.Traits
 		[Desc("Ammo the minelayer consumes per mine.")]
 		public readonly int AmmoUsage = 1;
 
+		[Desc("Number of ticks it takes to lay a mine.")]
+		public readonly int PreLayDelay = 0;
+
+		[Desc("Number of ticks for the minelayer to wait after laying a mine. The wait can be interrupted by a player order.")]
+		public readonly int AfterLayingDelay = 20;
+
 		public override object Create(ActorInitializer init) { return new Minelayer(init.Self, this); }
 	}
 
@@ -103,18 +109,23 @@ namespace OpenRA.Mods.Common.Traits
 			switch (order.OrderID)
 			{
 				case "BeginMinefield":
-					var start = self.World.Map.CellContaining(target.CenterPosition);
-					if (self.World.OrderGenerator is MinefieldOrderGenerator generator)
-						generator.AddMinelayer(self);
-					else
-						self.World.OrderGenerator = new MinefieldOrderGenerator(self, start, queued);
-
-					return new Order("BeginMinefield", self, Target.FromCell(self.World, start), queued);
+					return BeginMinefield(self, target, queued);
 				case "PlaceMine":
 					return new Order("PlaceMine", self, Target.FromCell(self.World, self.Location), queued);
 				default:
 					return null;
 			}
+		}
+
+		public static Order BeginMinefield(Actor self, Target target, bool queued)
+		{
+			var start = self.World.Map.CellContaining(target.CenterPosition);
+			if (self.World.OrderGenerator is MinefieldOrderGenerator generator)
+				generator.AddMinelayer(self);
+			else
+				self.World.OrderGenerator = new MinefieldOrderGenerator(self, start, queued);
+
+			return new Order("BeginMinefield", self, Target.FromCell(self.World, start), queued);
 		}
 
 		Order IIssueDeployOrder.IssueDeployOrder(Actor self, bool queued)
@@ -130,6 +141,9 @@ namespace OpenRA.Mods.Common.Traits
 		void IResolveOrder.ResolveOrder(Actor self, Order order)
 		{
 			if (order.OrderString != "BeginMinefield" && order.OrderString != "PlaceMinefield" && order.OrderString != "PlaceMine")
+				return;
+
+			if (!order.Target.IsValidFor(self))
 				return;
 
 			var cell = self.World.Map.CellContaining(order.Target.CenterPosition);
@@ -279,7 +293,7 @@ namespace OpenRA.Mods.Common.Traits
 
 				if (mi.Button == Game.Settings.Game.MouseButtonPreference.Action)
 				{
-					minelayers.First().World.CancelInputMode();
+					minelayers[0].World.CancelInputMode();
 					foreach (var minelayer in minelayers)
 						yield return new Order("PlaceMinefield", minelayer, Target.FromCell(world, cell), queued) { ExtraLocation = minefieldStart };
 				}

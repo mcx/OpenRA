@@ -79,18 +79,11 @@ fact:
 	build:
 		Start: 1
 		Length: 25
-	pdox:
-		Filename: factpdox.shp
-		Length: 80
 	damaged-idle:
 		Start: 26
 	damaged-build:
 		Start: 27
 		Length: 25
-	damaged-pdox:
-		Filename: factpdox.shp
-		Start: 80
-		Length: 80
 	dead:
 		Filename: factdead.shp
 		Tick: 800
@@ -759,21 +752,21 @@ iron:
 	Defaults:
 		Filename: iron.shp
 	idle:
-		Offset: 0,-12
+		Offset: 0,-4
 	active:
 		Length: 11
-		Offset: 0,-12
+		Offset: 0,-4
 	damaged-idle:
 		Start: 11
-		Offset: 0,-12
+		Offset: 0,-4
 	damaged-active:
 		Start: 11
 		Length: 11
-		Offset: 0,-12
+		Offset: 0,-4
 	make:
 		Filename: ironmake.shp
 		Length: *
-		Offset: 0,-12
+		Offset: 0,-4
 	bib:
 		TilesetFilenames:
 			SNOW: mbIRON.sno
@@ -781,7 +774,7 @@ iron:
 			TEMPERAT: mbIRON.tem
 			DESERT: mbIRON.des
 		Length: *
-		Offset: 0,2
+		Offset: 0,-2
 	icon:
 		Filename: ironicon.shp
 

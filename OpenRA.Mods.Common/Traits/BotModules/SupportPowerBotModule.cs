@@ -15,6 +15,7 @@ using OpenRA.Traits;
 
 namespace OpenRA.Mods.Common.Traits
 {
+	[TraitLocation(SystemActors.Player)]
 	[Desc("Manages bot support power handling.")]
 	public class SupportPowerBotModuleInfo : ConditionalTraitInfo, Requires<SupportPowerManagerInfo>
 	{
@@ -25,7 +26,7 @@ namespace OpenRA.Mods.Common.Traits
 		static object LoadDecisions(MiniYaml yaml)
 		{
 			var ret = new List<SupportPowerDecision>();
-			var decisions = yaml.Nodes.FirstOrDefault(n => n.Key == "Decisions");
+			var decisions = yaml.NodeWithKeyOrDefault("Decisions");
 			if (decisions != null)
 				foreach (var d in decisions.Value.Nodes)
 					ret.Add(new SupportPowerDecision(d.Value));
@@ -71,8 +72,7 @@ namespace OpenRA.Mods.Common.Traits
 					continue;
 
 				// Add power to dictionary if not in delay dictionary yet
-				if (!waitingPowers.ContainsKey(sp))
-					waitingPowers.Add(sp, 0);
+				waitingPowers.TryAdd(sp, 0);
 
 				if (waitingPowers[sp] > 0)
 					waitingPowers[sp]--;
@@ -83,14 +83,14 @@ namespace OpenRA.Mods.Common.Traits
 				{
 					if (powerDecision == null)
 					{
-						AIUtils.BotDebug("{0} couldn't find powerDecision for {1}", player.PlayerName, sp.Info.OrderName);
+						AIUtils.BotDebug($"{player.ResolvedPlayerName} couldn't find powerDecision for {sp.Info.OrderName}");
 						continue;
 					}
 
 					var attackLocation = FindCoarseAttackLocationToSupportPower(sp);
 					if (attackLocation == null)
 					{
-						AIUtils.BotDebug("{0} can't find suitable coarse attack location for support power {1}. Delaying rescan.", player.PlayerName, sp.Info.OrderName);
+						AIUtils.BotDebug($"{player.ResolvedPlayerName} can't find suitable coarse attack location for support power {sp.Info.OrderName}. Delaying rescan.");
 						waitingPowers[sp] += powerDecision.GetNextScanTime(world);
 
 						continue;
@@ -100,18 +100,20 @@ namespace OpenRA.Mods.Common.Traits
 					attackLocation = FindFineAttackLocationToSupportPower(sp, (CPos)attackLocation);
 					if (attackLocation == null)
 					{
-						AIUtils.BotDebug("{0} can't find suitable final attack location for support power {1}. Delaying rescan.", player.PlayerName, sp.Info.OrderName);
+						AIUtils.BotDebug($"{player.ResolvedPlayerName} can't find suitable final attack location for support power {sp.Info.OrderName}. Delaying rescan.");
 						waitingPowers[sp] += powerDecision.GetNextScanTime(world);
 
 						continue;
 					}
 
 					// Valid target found, delay by a few ticks to avoid rescanning before power fires via order
-					AIUtils.BotDebug("{0} found new target location {1} for support power {2}.", player.PlayerName, attackLocation, sp.Info.OrderName);
+					AIUtils.BotDebug($"{player.ResolvedPlayerName} found new target location {attackLocation} for support power {sp.Info.OrderName}.");
 					waitingPowers[sp] += 10;
 
 					// Note: SelectDirectionalTarget uses uint.MaxValue in ExtraData to indicate that the player did not pick a direction.
-					bot.QueueOrder(new Order(sp.Key, supportPowerManager.Self, Target.FromCell(world, attackLocation.Value), false) { SuppressVisualFeedback = true, ExtraData = uint.MaxValue });
+					bot.QueueOrder(
+						new Order(sp.Key, supportPowerManager.Self, Target.FromCell(world, attackLocation.Value), false)
+						{ SuppressVisualFeedback = true, ExtraData = uint.MaxValue });
 				}
 			}
 
@@ -129,7 +131,7 @@ namespace OpenRA.Mods.Common.Traits
 			var powerDecision = powerDecisions[readyPower.Info.OrderName];
 			if (powerDecision == null)
 			{
-				AIUtils.BotDebug("{0} couldn't find powerDecision for {1}", player.PlayerName, readyPower.Info.OrderName);
+				AIUtils.BotDebug($"{player.ResolvedPlayerName} couldn't find powerDecision for {readyPower.Info.OrderName}");
 				return null;
 			}
 
@@ -179,7 +181,7 @@ namespace OpenRA.Mods.Common.Traits
 			var powerDecision = powerDecisions[readyPower.Info.OrderName];
 			if (powerDecision == null)
 			{
-				AIUtils.BotDebug("{0} couldn't find powerDecision for {1}", player.PlayerName, readyPower.Info.OrderName);
+				AIUtils.BotDebug($"{player.ResolvedPlayerName} couldn't find powerDecision for {readyPower.Info.OrderName}");
 				return null;
 			}
 
@@ -218,16 +220,16 @@ namespace OpenRA.Mods.Common.Traits
 
 			return new List<MiniYamlNode>()
 			{
-				new MiniYamlNode("WaitingPowers", "", waitingPowersNodes)
+				new("WaitingPowers", "", waitingPowersNodes)
 			};
 		}
 
-		void IGameSaveTraitData.ResolveTraitData(Actor self, List<MiniYamlNode> data)
+		void IGameSaveTraitData.ResolveTraitData(Actor self, MiniYaml data)
 		{
 			if (self.World.IsReplay)
 				return;
 
-			var waitingPowersNode = data.FirstOrDefault(n => n.Key == "WaitingPowers");
+			var waitingPowersNode = data.NodeWithKeyOrDefault("WaitingPowers");
 			if (waitingPowersNode != null)
 			{
 				foreach (var n in waitingPowersNode.Value.Nodes)

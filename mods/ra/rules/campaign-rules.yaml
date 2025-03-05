@@ -29,7 +29,7 @@ Player:
 	DeveloperMode:
 		CheckboxVisible: False
 	ModularBot@CampaignAI:
-		Name: Campaign Player AI
+		Name: bot-campaign-ai.name
 		Type: campaign
 
 World:
@@ -84,7 +84,7 @@ HARV:
 
 MONEYCRATE:
 	Tooltip:
-		Name: Crate
+		Name: actor-crate-name
 	GiveCashCrateAction:
 		Amount: 2000
 

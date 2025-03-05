@@ -25,7 +25,7 @@ namespace OpenRA.Mods.Common.Projectiles
 	public class AreaBeamInfo : IProjectileInfo
 	{
 		[Desc("Projectile speed in WDist / tick, two values indicate a randomly picked velocity per beam.")]
-		public readonly WDist[] Speed = { new WDist(128) };
+		public readonly WDist[] Speed = { new(128) };
 
 		[Desc("The maximum duration (in ticks) of each beam burst.")]
 		public readonly int Duration = 10;
@@ -49,12 +49,15 @@ namespace OpenRA.Mods.Common.Projectiles
 		public readonly int[] Falloff = { 100, 100 };
 
 		[Desc("Ranges at which each Falloff step is defined.")]
-		public readonly WDist[] Range = { WDist.Zero, new WDist(int.MaxValue) };
+		public readonly WDist[] Range = { WDist.Zero, new(int.MaxValue) };
 
 		[Desc("The maximum/constant/incremental inaccuracy used in conjunction with the InaccuracyType property.")]
 		public readonly WDist Inaccuracy = WDist.Zero;
 
-		[Desc("Controls the way inaccuracy is calculated. Possible values are 'Maximum' - scale from 0 to max with range, 'PerCellIncrement' - scale from 0 with range and 'Absolute' - use set value regardless of range.")]
+		[Desc("Controls the way inaccuracy is calculated. Possible values are " +
+			"'Maximum' - scale from 0 to max with range, " +
+			"'PerCellIncrement' - scale from 0 with range, " +
+			"'Absolute' - use set value regardless of range.")]
 		public readonly InaccuracyType InaccuracyType = InaccuracyType.Maximum;
 
 		[Desc("Can this projectile be blocked when hitting actors with an IBlocksProjectiles trait.")]
@@ -77,7 +80,7 @@ namespace OpenRA.Mods.Common.Projectiles
 
 		public IProjectile Create(ProjectileArgs args)
 		{
-			var c = UsePlayerColor ? args.SourceActor.Owner.Color : Color;
+			var c = UsePlayerColor ? args.SourceActor.OwnerColor() : Color;
 			return new AreaBeam(this, args, c);
 		}
 	}
@@ -164,7 +167,7 @@ namespace OpenRA.Mods.Common.Projectiles
 
 			if (args.GuidedTarget.IsValidFor(args.SourceActor))
 			{
-				var guidedTargetPos = args.Weapon.TargetActorCenter ? args.GuidedTarget.CenterPosition : args.GuidedTarget.Positions.PositionClosestTo(args.Source);
+				var guidedTargetPos = args.Weapon.TargetActorCenter ? args.GuidedTarget.CenterPosition : args.GuidedTarget.Positions.ClosestToIgnoringPath(args.Source);
 				var targetDistance = new WDist((guidedTargetPos - args.Source).Length);
 
 				// Only continue tracking target if it's within weapon range +

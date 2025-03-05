@@ -36,12 +36,10 @@ namespace OpenRA.Mods.Common.Widgets
 			{
 				fixed (byte* cc = &buffer[0])
 				{
-					var c = (int*)cc;
+					var c = (uint*)cc;
 					for (var h = 0; h < 256; h++)
 					{
-						#pragma warning disable IDE0047
-						(*(c + 0 * 256 + h)) = Color.FromAhsv(h / 255f, 1, 1).ToArgb();
-						#pragma warning restore IDE0047
+						*(c + 0 * 256 + h) = Color.FromAhsv(h / 255f, 1, 1).ToArgb();
 					}
 				}
 			}

@@ -42,19 +42,19 @@ namespace OpenRA.Mods.Common.Lint
 					var properties = trait.GetType().GetProperties();
 
 					var fieldConsumed = fields
-						.Where(x => Utility.HasAttribute<ConsumedConditionReferenceAttribute>(x))
+						.Where(Utility.HasAttribute<ConsumedConditionReferenceAttribute>)
 						.SelectMany(f => LintExts.GetFieldValues(trait, f));
 
 					var propertyConsumed = properties
-						.Where(x => Utility.HasAttribute<ConsumedConditionReferenceAttribute>(x))
+						.Where(Utility.HasAttribute<ConsumedConditionReferenceAttribute>)
 						.SelectMany(p => LintExts.GetPropertyValues(trait, p));
 
 					var fieldGranted = fields
-						.Where(x => Utility.HasAttribute<GrantedConditionReferenceAttribute>(x))
+						.Where(Utility.HasAttribute<GrantedConditionReferenceAttribute>)
 						.SelectMany(f => LintExts.GetFieldValues(trait, f));
 
 					var propertyGranted = properties
-						.Where(x => Utility.HasAttribute<GrantedConditionReferenceAttribute>(x))
+						.Where(Utility.HasAttribute<GrantedConditionReferenceAttribute>)
 						.SelectMany(f => LintExts.GetPropertyValues(trait, f));
 
 					foreach (var c in fieldConsumed.Concat(propertyConsumed))
@@ -66,12 +66,12 @@ namespace OpenRA.Mods.Common.Lint
 							granted.Add(g);
 				}
 
-				var unconsumed = granted.Except(consumed);
-				if (unconsumed.Any())
+				var unconsumed = granted.Except(consumed).ToList();
+				if (unconsumed.Count != 0)
 					emitWarning($"Actor type `{actorInfo.Key}` grants conditions that are not consumed: {unconsumed.JoinWith(", ")}.");
 
-				var ungranted = consumed.Except(granted);
-				if (ungranted.Any())
+				var ungranted = consumed.Except(granted).ToList();
+				if (ungranted.Count != 0)
 					emitError($"Actor type `{actorInfo.Key}` consumes conditions that are not granted: {ungranted.JoinWith(", ")}.");
 			}
 		}

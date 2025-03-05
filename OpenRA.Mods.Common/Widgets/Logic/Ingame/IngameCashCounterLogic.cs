@@ -10,14 +10,16 @@
 #endregion
 
 using System;
+using System.Globalization;
 using OpenRA.Mods.Common.Traits;
+using OpenRA.Primitives;
 using OpenRA.Widgets;
 
 namespace OpenRA.Mods.Common.Widgets.Logic
 {
 	public class IngameCashCounterLogic : ChromeLogic
 	{
-		[TranslationReference("usage", "capacity")]
+		[FluentReference("usage", "capacity")]
 		const string SiloUsage = "label-silo-usage";
 
 		const float DisplayFracPerFrame = .07f;
@@ -40,10 +42,10 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			this.world = world;
 			player = world.LocalPlayer;
 			playerResources = player.PlayerActor.Trait<PlayerResources>();
-			displayResources = playerResources.Cash + playerResources.Resources;
+			displayResources = playerResources.GetCashAndResources();
 
 			siloUsageTooltipCache = new CachedTransform<(int Resources, int Capacity), string>(x =>
-				TranslationProvider.GetString(SiloUsage, Translation.Arguments("usage", x.Resources, "capacity", x.Capacity)));
+				FluentProvider.GetMessage(SiloUsage, "usage", x.Resources, "capacity", x.Capacity));
 			cashLabel = widget.Get<LabelWithTooltipWidget>("CASH");
 			cashLabel.GetTooltipText = () => siloUsageTooltip;
 		}
@@ -53,7 +55,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			if (nextCashTickTime > 0)
 				nextCashTickTime--;
 
-			var actual = playerResources.Cash + playerResources.Resources;
+			var actual = playerResources.GetCashAndResources();
 
 			var diff = Math.Abs(actual - displayResources);
 			var move = Math.Min(Math.Max((int)(diff * DisplayFracPerFrame), DisplayDeltaPerFrame), diff);
@@ -77,7 +79,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			}
 
 			siloUsageTooltip = siloUsageTooltipCache.Update((playerResources.Resources, playerResources.ResourceCapacity));
-			cashLabel.Text = displayResources.ToString();
+			var displayResourcesText = displayResources.ToString(CultureInfo.CurrentCulture);
+			cashLabel.GetText = () => displayResourcesText;
 		}
 	}
 }

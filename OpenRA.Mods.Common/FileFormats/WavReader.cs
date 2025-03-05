@@ -18,7 +18,7 @@ namespace OpenRA.Mods.Common.FileFormats
 {
 	public static class WavReader
 	{
-		enum WaveType { Pcm = 0x1, MsAdpcm = 0x2, ImaAdpcm = 0x11 }
+		enum WaveType : short { Pcm = 0x1, MsAdpcm = 0x2, ImaAdpcm = 0x11 }
 
 		public static bool LoadSound(Stream s, out Func<Stream> result, out short channels, out int sampleBits, out int sampleRate, out float lengthInSeconds)
 		{
@@ -45,7 +45,7 @@ namespace OpenRA.Mods.Common.FileFormats
 			while (s.Position < s.Length)
 			{
 				if ((s.Position & 1) == 1)
-					s.ReadByte(); // Alignment
+					s.ReadUInt8(); // Alignment
 
 				if (s.Position == s.Length)
 					break; // Break if we aligned with end of stream
@@ -58,7 +58,7 @@ namespace OpenRA.Mods.Common.FileFormats
 						var audioFormat = s.ReadInt16();
 						audioType = (WaveType)audioFormat;
 
-						if (!Enum.IsDefined(typeof(WaveType), audioType))
+						if (!Enum.IsDefined(audioType))
 							throw new NotSupportedException($"Compression type {audioFormat} is not supported.");
 
 						channels = s.ReadInt16();
@@ -67,12 +67,12 @@ namespace OpenRA.Mods.Common.FileFormats
 						blockAlign = s.ReadInt16();
 						sampleBits = s.ReadInt16();
 						lengthInSeconds = (float)(s.Length * 8) / (channels * sampleRate * sampleBits);
-						s.ReadBytes(fmtChunkSize - 16);
+						s.Position += fmtChunkSize - 16;
 						break;
 					case "fact":
 						var chunkSize = s.ReadInt32();
 						uncompressedSize = s.ReadInt32();
-						s.ReadBytes(chunkSize - 4);
+						s.Position += chunkSize - 4;
 						break;
 					case "data":
 						dataSize = s.ReadInt32();
@@ -82,7 +82,7 @@ namespace OpenRA.Mods.Common.FileFormats
 					case "LIST":
 					case "cue ":
 						var listCueChunkSize = s.ReadInt32();
-						s.ReadBytes(listCueChunkSize);
+						s.Position += listCueChunkSize;
 						break;
 					default:
 						s.Position = s.Length; // Skip to end of stream
@@ -156,12 +156,13 @@ namespace OpenRA.Mods.Common.FileFormats
 
 				// Decode and output remaining data in this block
 				var blockOffset = 0;
+				Span<byte> chunk = stackalloc byte[4];
 				while (blockOffset < blockDataSize)
 				{
 					for (var c = 0; c < channels; c++)
 					{
 						// Decode 4 bytes (to 16 bytes of output) per channel
-						var chunk = baseStream.ReadBytes(4);
+						baseStream.ReadBytes(chunk);
 						var decoded = ImaAdpcmReader.LoadImaAdpcmSound(chunk, ref index[c], ref predictor[c]);
 
 						// Interleave output, one sample per channel
@@ -252,7 +253,14 @@ namespace OpenRA.Mods.Common.FileFormats
 					WriteSample(DecodeNibble((short)((bytecode >> 4) & 0x0F), bpred[0], ref chanIdelta[0], ref s1[0], ref s2[0]), data);
 
 					// Decode the second nibble, for stereo this will be the right channel
-					WriteSample(DecodeNibble((short)(bytecode & 0x0F), bpred[channelNumber], ref chanIdelta[channelNumber], ref s1[channelNumber], ref s2[channelNumber]), data);
+					WriteSample(
+						DecodeNibble(
+							(short)(bytecode & 0x0F),
+							bpred[channelNumber],
+							ref chanIdelta[channelNumber],
+							ref s1[channelNumber],
+							ref s2[channelNumber]),
+						data);
 				}
 
 				return ++currentBlock >= numBlocks;

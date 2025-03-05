@@ -21,7 +21,7 @@ namespace OpenRA.FileSystem
 	{
 		const uint ZipSignature = 0x04034b50;
 
-		class ReadOnlyZipFile : IReadOnlyPackage
+		public class ReadOnlyZipFile : IReadOnlyPackage
 		{
 			public string Name { get; protected set; }
 			protected ZipFile pkg;
@@ -68,6 +68,7 @@ namespace OpenRA.FileSystem
 			public void Dispose()
 			{
 				pkg?.Close();
+				GC.SuppressFinalize(this);
 			}
 
 			public IReadOnlyPackage OpenPackage(string filename, FileSystem context)
@@ -93,15 +94,15 @@ namespace OpenRA.FileSystem
 			}
 		}
 
-		sealed class ReadWriteZipFile : ReadOnlyZipFile, IReadWritePackage
+		public sealed class ReadWriteZipFile : ReadOnlyZipFile, IReadWritePackage
 		{
 			readonly MemoryStream pkgStream = new();
 
-			public ReadWriteZipFile(string filename, bool create = false)
+			public ReadWriteZipFile(string filename = null, bool create = false)
 			{
 				// SharpZipLib breaks when asked to update archives loaded from outside streams or files
 				// We can work around this by creating a clean in-memory-only file, cutting all outside references
-				if (!create)
+				if (!string.IsNullOrEmpty(filename) && !create)
 				{
 					using (var copy = new MemoryStream(File.ReadAllBytes(filename)))
 					{
@@ -113,14 +114,16 @@ namespace OpenRA.FileSystem
 				pkgStream.Position = 0;
 				pkg = new ZipFile(pkgStream);
 				Name = filename;
+
+				// Remove subfields that can break ZIP updating.
+				foreach (ZipEntry entry in pkg)
+					entry.ExtraData = null;
 			}
 
 			void Commit()
 			{
-				var pos = pkgStream.Position;
-				pkgStream.Position = 0;
-				File.WriteAllBytes(Name, pkgStream.ReadBytes((int)pkgStream.Length));
-				pkgStream.Position = pos;
+				if (!string.IsNullOrEmpty(Name))
+					File.WriteAllBytes(Name, pkgStream.ToArray());
 			}
 
 			public void Update(string filename, byte[] contents)
@@ -147,7 +150,7 @@ namespace OpenRA.FileSystem
 
 			public ZipFolder(ReadOnlyZipFile parent, string path)
 			{
-				if (path.EndsWith("/", StringComparison.Ordinal))
+				if (path.EndsWith('/'))
 					path = path[..^1];
 
 				Name = path;

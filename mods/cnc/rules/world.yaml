@@ -125,28 +125,28 @@
 			BlueTiberium: 100
 			Beach: 89
 	Faction@Random:
-		Name: Any
+		Name: faction-random.name
 		InternalName: Random
 		RandomFactionMembers: gdi, nod
-		Description: Random Faction\nA random faction will be chosen when the game starts.
+		Description: faction-random.description
 	Faction@gdi:
-		Name: GDI
+		Name: faction-gdi.name
 		InternalName: gdi
-		Description: Global Defense Initiative\nThe GDI is an international military branch of the United Nations tasked\nwith keeping world peace. Commanding the combined forces of the world's\nmost powerful nations, they possess an unmatched arsenal of high-tech weaponry.
+		Description: faction-gdi.description
 	Faction@nod:
-		Name: Nod
+		Name: faction-nod.name
 		InternalName: nod
-		Description: Brotherhood of Nod\nThe Brotherhood is a religious cult centered around their leader Kane\nand the alien substance Tiberium. They utilize stealth technology\nand guerilla tactics to defeat those who oppose them.
+		Description: faction-nod.description
 	ResourceRenderer:
 		ResourceTypes:
 			Tiberium:
 				Sequences: ti1, ti2, ti3, ti4, ti5, ti6, ti7, ti8, ti9, ti10, ti11, ti12
 				Palette: staticterrain
-				Name: Tiberium
+				Name: resource-tiberium
 			BlueTiberium:
 				Sequences: bti1, bti2, bti3, bti4, bti5, bti6, bti7, bti8, bti9, bti10, bti11, bti12
 				Palette: bluetiberium
-				Name: Tiberium
+				Name: resource-tiberium
 
 World:
 	Inherits: ^BaseWorld
@@ -154,6 +154,7 @@ World:
 	DevCommands:
 	DebugVisualizationCommands:
 	PathFinderOverlay:
+	AutoSave:
 	HierarchicalPathFinderOverlay:
 	PlayerCommands:
 	HelpCommand:
@@ -167,14 +168,16 @@ World:
 		Type: Scorch
 		Sequence: scorches
 		SmokeChance: 50
-		SmokeImage: smoke_m
-		SmokeSequences: idle
+		SmokeImage: scorch_flames
+		SmokeSequences: large_flame, medium_flame, small_flame
+		MaxSmokeOffsetDistance: 341
 	SmudgeLayer@CRATER:
 		Type: Crater
 		Sequence: craters
 		SmokeChance: 25
 		SmokeImage: smoke_m
 		SmokeSequences: idle
+		MaxSmokeOffsetDistance: 213
 	ResourceLayer:
 		RecalculateResourceDensity: true
 		ResourceTypes:
@@ -277,6 +280,7 @@ World:
 
 EditorWorld:
 	Inherits: ^BaseWorld
+	Inherits@MapGenerators: ^MapGenerators
 	EditorActorLayer:
 	EditorCursorLayer:
 	EditorResourceLayer:
@@ -292,8 +296,8 @@ EditorWorld:
 				TerrainType: BlueTiberium
 				AllowedTerrainTypes: Clear, Road
 				MaxDensity: 12
-	EditorSelectionLayer:
 	LoadWidgetAtGameStart:
 	EditorActionManager:
 	BuildableTerrainOverlay:
 		AllowedTerrainTypes: Clear, Road
+	MarkerLayerOverlay:

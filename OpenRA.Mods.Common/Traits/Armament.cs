@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using OpenRA.GameRules;
+using OpenRA.Mods.Common.Traits.Render;
 using OpenRA.Traits;
 
 namespace OpenRA.Mods.Common.Traits
@@ -101,6 +102,9 @@ namespace OpenRA.Mods.Common.Traits
 			if (WeaponInfo.Burst > 1 && WeaponInfo.BurstDelays.Length > 1 && (WeaponInfo.BurstDelays.Length != WeaponInfo.Burst - 1))
 				throw new YamlException($"Weapon '{weaponToLower}' has an invalid number of BurstDelays, must be single entry or Burst - 1.");
 
+			if (WeaponInfo.ReloadDelay <= 0)
+				throw new YamlException($"Weapon '{weaponToLower}' ReloadDelay value must not be equal to or lower than 0");
+
 			base.RulesetLoaded(rules, ai);
 		}
 	}
@@ -110,9 +114,11 @@ namespace OpenRA.Mods.Common.Traits
 		public readonly WeaponInfo Weapon;
 		public readonly Barrel[] Barrels;
 		Turreted turret;
+		Hovers hovers;
+
 		BodyOrientation coords;
 		INotifyBurstComplete[] notifyBurstComplete;
-		INotifyAttack[] notifyAttacks;
+		List<(Actor NotifyActor, INotifyAttack Notify)> notifyAttacks;
 
 		int conditionToken = Actor.InvalidConditionToken;
 
@@ -165,9 +171,10 @@ namespace OpenRA.Mods.Common.Traits
 		protected override void Created(Actor self)
 		{
 			turret = self.TraitsImplementing<Turreted>().FirstOrDefault(t => t.Name == Info.Turret);
+			hovers = self.TraitOrDefault<Hovers>();
 			coords = self.Trait<BodyOrientation>();
 			notifyBurstComplete = self.TraitsImplementing<INotifyBurstComplete>().ToArray();
-			notifyAttacks = self.TraitsImplementing<INotifyAttack>().ToArray();
+			notifyAttacks = self.TraitsImplementing<INotifyAttack>().Select(a => (self, a)).ToList();
 
 			rangeModifiers = self.TraitsImplementing<IRangeModifier>().ToArray().Select(m => m.GetRangeModifier());
 			reloadModifiers = self.TraitsImplementing<IReloadModifier>().ToArray().Select(m => m.GetReloadModifier());
@@ -175,6 +182,16 @@ namespace OpenRA.Mods.Common.Traits
 			inaccuracyModifiers = self.TraitsImplementing<IInaccuracyModifier>().ToArray().Select(m => m.GetInaccuracyModifier());
 
 			base.Created(self);
+		}
+
+		public void AddNotifyAttacks(Actor attacker, INotifyAttack[] notifyAttacks)
+		{
+			this.notifyAttacks.AddRange(notifyAttacks.Select(a => (attacker, a)));
+		}
+
+		public void RemoveNotifyAttacks(INotifyAttack[] notifyAttacks)
+		{
+			this.notifyAttacks.RemoveAll(pair => notifyAttacks.Any(notify => notify == pair.Notify));
 		}
 
 		void UpdateCondition(Actor self)
@@ -251,38 +268,40 @@ namespace OpenRA.Mods.Common.Traits
 
 		// Note: facing is only used by the legacy positioning code
 		// The world coordinate model uses Actor.Orientation
-		public virtual Barrel CheckFire(Actor self, IFacing facing, in Target target)
+		public virtual bool CheckFire(Actor self, IFacing facing, in Target target)
 		{
 			if (!CanFire(self, target))
-				return null;
+				return false;
 
 			if (ticksSinceLastShot >= Weapon.ReloadDelay)
 				Burst = Weapon.Burst;
 
 			ticksSinceLastShot = 0;
+			do
+			{
+				// If Weapon.Burst == 1, cycle through all LocalOffsets, otherwise use the offset corresponding to current Burst
+				currentBarrel %= barrelCount;
+				var barrel = Weapon.Burst == 1 ? Barrels[currentBarrel] : Barrels[Burst % Barrels.Length];
+				currentBarrel++;
 
-			// If Weapon.Burst == 1, cycle through all LocalOffsets, otherwise use the offset corresponding to current Burst
-			currentBarrel %= barrelCount;
-			var barrel = Weapon.Burst == 1 ? Barrels[currentBarrel] : Barrels[Burst % Barrels.Length];
-			currentBarrel++;
+				FireBarrel(self, facing, target, barrel);
+				UpdateBurst(self, target);
+			}
+			while (FireDelay == 0 && CanFire(self, target));
 
-			FireBarrel(self, facing, target, barrel);
-
-			UpdateBurst(self, target);
-
-			return barrel;
+			return true;
 		}
 
 		protected virtual void FireBarrel(Actor self, IFacing facing, in Target target, Barrel barrel)
 		{
-			foreach (var na in notifyAttacks)
-				na.PreparingAttack(self, target, this, barrel);
+			foreach (var (notifyActor, notify) in notifyAttacks)
+				notify.PreparingAttack(notifyActor, target, this, barrel);
 
 			WPos MuzzlePosition() => self.CenterPosition + MuzzleOffset(self, barrel);
 			WAngle MuzzleFacing() => MuzzleOrientation(self, barrel).Yaw;
 			var muzzleOrientation = WRot.FromYaw(MuzzleFacing());
 
-			var passiveTarget = Weapon.TargetActorCenter ? target.CenterPosition : target.Positions.PositionClosestTo(MuzzlePosition());
+			var passiveTarget = Weapon.TargetActorCenter ? target.CenterPosition : target.Positions.ClosestToIgnoringPath(MuzzlePosition());
 			var initialOffset = Weapon.FirstBurstTargetOffset;
 			if (initialOffset != WVec.Zero)
 			{
@@ -334,11 +353,11 @@ namespace OpenRA.Mods.Common.Traits
 					if (burst == args.Weapon.Burst && args.Weapon.StartBurstReport != null && args.Weapon.StartBurstReport.Length > 0)
 						Game.Sound.Play(SoundType.World, args.Weapon.StartBurstReport, self.World, self.CenterPosition);
 
-					foreach (var na in notifyAttacks)
-						na.Attacking(self, delayedTarget, this, barrel);
-
 					Recoil = Info.Recoil;
 				}
+
+				foreach (var (notifyActor, notify) in notifyAttacks)
+					notify.Attacking(notifyActor, delayedTarget, this, barrel);
 			});
 		}
 
@@ -355,10 +374,16 @@ namespace OpenRA.Mods.Common.Traits
 			{
 				var modifiers = reloadModifiers.ToArray();
 				FireDelay = Util.ApplyPercentageModifiers(Weapon.ReloadDelay, modifiers);
+				if (FireDelay <= 0)
+					FireDelay = 1;
+
 				Burst = Weapon.Burst;
 
 				if (Weapon.AfterFireSound != null && Weapon.AfterFireSound.Length > 0)
-					ScheduleDelayedAction(Weapon.AfterFireSoundDelay, Burst, (burst) => Game.Sound.Play(SoundType.World, Weapon.AfterFireSound, self.World, self.CenterPosition));
+					ScheduleDelayedAction(
+						Weapon.AfterFireSoundDelay,
+						Burst,
+						burst => Game.Sound.Play(SoundType.World, Weapon.AfterFireSound, self.World, self.CenterPosition));
 
 				foreach (var nbc in notifyBurstComplete)
 					nbc.FiredBurst(self, target, this);
@@ -376,6 +401,9 @@ namespace OpenRA.Mods.Common.Traits
 		{
 			// Weapon offset in turret coordinates
 			var localOffset = b.Offset + new WVec(-Recoil, WDist.Zero, WDist.Zero);
+
+			if (hovers != null)
+				localOffset += hovers.WorldVisualOffset;
 
 			// Turret coordinates to body coordinates
 			var bodyOrientation = coords.QuantizeOrientation(self.Orientation);

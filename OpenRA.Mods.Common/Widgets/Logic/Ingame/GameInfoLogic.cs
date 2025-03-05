@@ -22,30 +22,31 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 	sealed class GameInfoLogic : ChromeLogic
 	{
-		[TranslationReference]
+		[FluentReference]
 		const string Objectives = "menu-game-info.objectives";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Briefing = "menu-game-info.briefing";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Options = "menu-game-info.options";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Debug = "menu-game-info.debug";
 
-		[TranslationReference]
+		[FluentReference]
 		const string Chat = "menu-game-info.chat";
 
 		readonly World world;
 		readonly ModData modData;
 		readonly Action<bool> hideMenu;
+		readonly Action closeMenu;
 		readonly IObjectivesPanel iop;
 		IngameInfoPanel activePanel;
 		readonly bool hasError;
 
 		[ObjectCreator.UseCtor]
-		public GameInfoLogic(Widget widget, ModData modData, World world, IngameInfoPanel initialPanel, Action<bool> hideMenu)
+		public GameInfoLogic(Widget widget, ModData modData, World world, IngameInfoPanel initialPanel, Action<bool> hideMenu, Action closeMenu)
 		{
 			var panels = new Dictionary<IngameInfoPanel, (string Panel, string Label, Action<ButtonWidget, Widget> Setup)>()
 			{
@@ -59,6 +60,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			this.world = world;
 			this.modData = modData;
 			this.hideMenu = hideMenu;
+			this.closeMenu = closeMenu;
 			activePanel = initialPanel;
 
 			var visiblePanels = new List<IngameInfoPanel>();
@@ -106,7 +108,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 
 				if (tabButton != null)
 				{
-					tabButton.Text = TranslationProvider.GetString(label);
+					var tabButtonText = FluentProvider.GetMessage(label);
+					tabButton.GetText = () => tabButtonText;
 					tabButton.OnClick = () =>
 					{
 						if (activePanel == IngameInfoPanel.Chat)
@@ -140,7 +143,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			var panel = hasError ? "SCRIPT_ERROR_PANEL" : iop.PanelName;
 			Game.LoadWidget(world, panel, objectivesPanelContainer, new WidgetArgs()
 			{
-				{ "hideMenu", hideMenu }
+				{ "hideMenu", hideMenu },
+				{ "closeMenu", closeMenu },
 			});
 		}
 
@@ -153,8 +157,8 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 		{
 			Game.LoadWidget(world, "LOBBY_OPTIONS_PANEL", optionsPanelContainer, new WidgetArgs()
 			{
-				{ "getMap", (Func<MapPreview>)(() => modData.MapCache[world.Map.Uid]) },
-				{ "configurationDisabled", (Func<bool>)(() => true) }
+				{ "getMap", () => modData.MapCache[world.Map.Uid] },
+				{ "configurationDisabled", () => true }
 			});
 		}
 

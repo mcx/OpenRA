@@ -19,11 +19,11 @@ namespace OpenRA.Mods.Common.UpdateRules.Rules
 
 		public override string Description => "The Scale option was removed from RenderSprites. Scale can now be defined on individual sequence definitions.";
 
-		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNode actorNode)
+		public override IEnumerable<string> UpdateActorNode(ModData modData, MiniYamlNodeBuilder actorNode)
 		{
 			foreach (var renderSprites in actorNode.ChildrenMatching("RenderSprites"))
 				if (renderSprites.RemoveNodes("Scale") > 0)
-					yield return $"The actor-level scaling has been removed from {actorNode.Key} ({actorNode.Location.Filename}).\n" +
+					yield return $"The actor-level scaling has been removed from {actorNode.Key} ({actorNode.Location.Name}).\n" +
 						"You must manually define Scale on its sequences instead.";
 		}
 	}

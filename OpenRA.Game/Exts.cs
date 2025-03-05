@@ -14,6 +14,8 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
 using OpenRA.Primitives;
 using OpenRA.Support;
 using OpenRA.Traits;
@@ -22,15 +24,24 @@ namespace OpenRA
 {
 	public static class Exts
 	{
-		public static bool IsUppercase(this string str)
+		/// <summary>Returns <see cref="Color"/> of the <paramref name="actor"/>, taking <see cref="Actor.EffectiveOwner"/> into account.</summary>
+		public static Color OwnerColor(this Actor actor)
 		{
-			return string.Compare(str.ToUpperInvariant(), str, false) == 0;
+			var effectiveOwner = actor.EffectiveOwner;
+			if (effectiveOwner != null && effectiveOwner.Disguised && actor.World.RenderPlayer != null)
+				return effectiveOwner.Owner.Color;
+
+			return actor.Owner.Color;
 		}
 
-		public static T WithDefault<T>(T def, Func<T> f)
+		public static string FormatInvariant(this string format, params object[] args)
 		{
-			try { return f(); }
-			catch { return def; }
+			return string.Format(CultureInfo.InvariantCulture, format, args);
+		}
+
+		public static string FormatCurrent(this string format, params object[] args)
+		{
+			return string.Format(CultureInfo.CurrentCulture, format, args);
 		}
 
 		public static Lazy<T> Lazy<T>(Func<T> p) { return new Lazy<T>(p); }
@@ -109,21 +120,49 @@ namespace OpenRA
 
 		public static V GetOrAdd<K, V>(this Dictionary<K, V> d, K k, V v)
 		{
-			if (!d.TryGetValue(k, out var ret))
-				d.Add(k, ret = v);
-			return ret;
+			// SAFETY: Dictionary cannot be modified whilst the ref is alive.
+			ref var value = ref CollectionsMarshal.GetValueRefOrAddDefault(d, k, out var exists);
+			if (!exists)
+				value = v;
+			return value;
 		}
 
 		public static V GetOrAdd<K, V>(this Dictionary<K, V> d, K k, Func<K, V> createFn)
 		{
+			// Cannot use CollectionsMarshal.GetValueRefOrAddDefault here,
+			// the creation function could mutate the dictionary which would invalidate the ref.
 			if (!d.TryGetValue(k, out var ret))
 				d.Add(k, ret = createFn(k));
+			return ret;
+		}
+
+		public static T GetOrAdd<T>(this HashSet<T> set, T value)
+		{
+			if (!set.TryGetValue(value, out var ret))
+				set.Add(ret = value);
+			return ret;
+		}
+
+		public static T GetOrAdd<T>(this HashSet<T> set, T value, Func<T, T> createFn)
+		{
+			if (!set.TryGetValue(value, out var ret))
+				set.Add(ret = createFn(value));
 			return ret;
 		}
 
 		public static int IndexOf<T>(this T[] array, T value)
 		{
 			return Array.IndexOf(array, value);
+		}
+
+		public static T FirstOrDefault<T>(this T[] array, Predicate<T> match)
+		{
+			return Array.Find(array, match);
+		}
+
+		public static T FirstOrDefault<T>(this List<T> list, Predicate<T> match)
+		{
+			return list.Find(match);
 		}
 
 		public static T Random<T>(this IEnumerable<T> ts, MersenneTwister r)
@@ -138,7 +177,7 @@ namespace OpenRA
 
 		static T Random<T>(IEnumerable<T> ts, MersenneTwister r, bool throws)
 		{
-			var xs = ts as ICollection<T>;
+			var xs = ts as IReadOnlyCollection<T>;
 			xs ??= ts.ToList();
 			if (xs.Count == 0)
 			{
@@ -293,9 +332,9 @@ namespace OpenRA
 
 			// Adjust for other rounding modes
 			if (round == ISqrtRoundMode.Nearest && remainder > root)
-				root += 1;
+				root++;
 			else if (round == ISqrtRoundMode.Ceiling && root * root < number)
-				root += 1;
+				root++;
 
 			return root;
 		}
@@ -334,9 +373,9 @@ namespace OpenRA
 
 			// Adjust for other rounding modes
 			if (round == ISqrtRoundMode.Nearest && remainder > root)
-				root += 1;
+				root++;
 			else if (round == ISqrtRoundMode.Ceiling && root * root < number)
-				root += 1;
+				root++;
 
 			return root;
 		}
@@ -344,6 +383,11 @@ namespace OpenRA
 		public static int MultiplyBySqrtTwo(short number)
 		{
 			return number * 46341 / 32768;
+		}
+
+		public static int MultiplyBySqrtTwoOverTwo(int number)
+		{
+			return (int)(number * 23170L / 32768L);
 		}
 
 		public static int IntegerDivisionRoundingAwayFromZero(int dividend, int divisor)
@@ -385,14 +429,25 @@ namespace OpenRA
 			this IEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TElement> elementSelector,
 			string debugName, Func<TKey, string> logKey = null, Func<TElement, string> logValue = null)
 		{
+			var output = new Dictionary<TKey, TElement>();
+			IntoDictionaryWithConflictLog(source, keySelector, elementSelector, debugName, output, logKey, logValue);
+			return output;
+		}
+
+		public static void IntoDictionaryWithConflictLog<TSource, TKey, TElement>(
+			this IEnumerable<TSource> source, Func<TSource, TKey> keySelector, Func<TSource, TElement> elementSelector,
+			string debugName, Dictionary<TKey, TElement> output,
+			Func<TKey, string> logKey = null, Func<TElement, string> logValue = null)
+		{
 			// Fall back on ToString() if null functions are provided:
 			logKey ??= s => s.ToString();
 			logValue ??= s => s.ToString();
 
 			// Try to build a dictionary and log all duplicates found (if any):
-			var dupKeys = new Dictionary<TKey, List<string>>();
+			Dictionary<TKey, List<string>> dupKeys = null;
 			var capacity = source is ICollection<TSource> collection ? collection.Count : 0;
-			var d = new Dictionary<TKey, TElement>(capacity);
+			output.Clear();
+			output.EnsureCapacity(capacity);
 			foreach (var item in source)
 			{
 				var key = keySelector(item);
@@ -403,14 +458,15 @@ namespace OpenRA
 					continue;
 
 				// Check for a key conflict:
-				if (!d.TryAdd(key, element))
+				if (!output.TryAdd(key, element))
 				{
+					dupKeys ??= new Dictionary<TKey, List<string>>();
 					if (!dupKeys.TryGetValue(key, out var dupKeyMessages))
 					{
 						// Log the initial conflicting value already inserted:
 						dupKeyMessages = new List<string>
 						{
-							logValue(d[key])
+							logValue(output[key])
 						};
 						dupKeys.Add(key, dupKeyMessages);
 					}
@@ -421,15 +477,14 @@ namespace OpenRA
 			}
 
 			// If any duplicates were found, throw a descriptive error
-			if (dupKeys.Count > 0)
+			if (dupKeys != null)
 			{
-				var badKeysFormatted = string.Join(", ", dupKeys.Select(p => $"{logKey(p.Key)}: [{string.Join(",", p.Value)}]"));
-				var msg = $"{debugName}, duplicate values found for the following keys: {badKeysFormatted}";
-				throw new ArgumentException(msg);
+				var badKeysFormatted = new StringBuilder(
+					$"{debugName}, duplicate values found for the following keys: ");
+				foreach (var p in dupKeys)
+					badKeysFormatted.Append(CultureInfo.InvariantCulture, $"{logKey(p.Key)}: [{string.Join(",", p.Value)}]");
+				throw new ArgumentException(badKeysFormatted.ToString());
 			}
-
-			// Return the dictionary we built:
-			return d;
 		}
 
 		public static Color ColorLerp(float t, Color c1, Color c2)
@@ -450,50 +505,43 @@ namespace OpenRA
 			return result;
 		}
 
-		public static T[,] ResizeArray<T>(T[,] ts, T t, int width, int height)
-		{
-			var result = new T[width, height];
-			for (var i = 0; i < width; i++)
-			{
-				for (var j = 0; j < height; j++)
-				{
-					// Workaround for broken ternary operators in certain versions of mono
-					// (3.10 and certain versions of the 3.8 series): https://bugzilla.xamarin.com/show_bug.cgi?id=23319
-					if (i <= ts.GetUpperBound(0) && j <= ts.GetUpperBound(1))
-						result[i, j] = ts[i, j];
-					else
-						result[i, j] = t;
-				}
-			}
-
-			return result;
-		}
-
-		public static int ToBits(this IEnumerable<bool> bits)
-		{
-			var i = 0;
-			var result = 0;
-			foreach (var b in bits)
-				if (b)
-					result |= 1 << i++;
-				else
-					i++;
-			if (i > 33)
-				throw new InvalidOperationException("ToBits only accepts up to 32 values.");
-			return result;
-		}
-
-		public static int ParseIntegerInvariant(string s)
-		{
-			return int.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
-		}
-
-		public static byte ParseByte(string s)
+		public static byte ParseByteInvariant(string s)
 		{
 			return byte.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
 		}
 
-		public static bool TryParseIntegerInvariant(string s, out int i)
+		public static ushort ParseUshortInvariant(string s)
+		{
+			return ushort.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
+		}
+
+		public static short ParseInt16Invariant(string s)
+		{
+			return short.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
+		}
+
+		public static int ParseInt32Invariant(string s)
+		{
+			return int.Parse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo);
+		}
+
+		public static float ParseFloatOrPercentInvariant(string s)
+		{
+			var f = float.Parse(s.Replace("%", ""), NumberStyles.Float, NumberFormatInfo.InvariantInfo);
+			return f * (s.Contains('%') ? 0.01f : 1f);
+		}
+
+		public static bool TryParseByteInvariant(string s, out byte i)
+		{
+			return byte.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out i);
+		}
+
+		public static bool TryParseUshortInvariant(string s, out ushort i)
+		{
+			return ushort.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out i);
+		}
+
+		public static bool TryParseInt32Invariant(string s, out int i)
 		{
 			return int.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out i);
 		}
@@ -501,6 +549,42 @@ namespace OpenRA
 		public static bool TryParseInt64Invariant(string s, out long i)
 		{
 			return long.TryParse(s, NumberStyles.Integer, NumberFormatInfo.InvariantInfo, out i);
+		}
+
+		public static bool TryParseFloatOrPercentInvariant(string s, out float f)
+		{
+			if (float.TryParse(s.Replace("%", ""), NumberStyles.Float, NumberFormatInfo.InvariantInfo, out f))
+			{
+				f *= s.Contains('%') ? 0.01f : 1f;
+				return true;
+			}
+
+			return false;
+		}
+
+		public static string ToStringInvariant(this byte i)
+		{
+			return i.ToString(NumberFormatInfo.InvariantInfo);
+		}
+
+		public static string ToStringInvariant(this byte i, string format)
+		{
+			return i.ToString(format, NumberFormatInfo.InvariantInfo);
+		}
+
+		public static string ToStringInvariant(this int i)
+		{
+			return i.ToString(NumberFormatInfo.InvariantInfo);
+		}
+
+		public static string ToStringInvariant(this float f)
+		{
+			return f.ToString(NumberFormatInfo.InvariantInfo);
+		}
+
+		public static string ToStringInvariant(this int i, string format)
+		{
+			return i.ToString(format, NumberFormatInfo.InvariantInfo);
 		}
 
 		public static bool IsTraitEnabled<T>(this T trait)
@@ -566,7 +650,7 @@ namespace OpenRA
 			Current = default;
 		}
 
-		public LineSplitEnumerator GetEnumerator() => this;
+		public readonly LineSplitEnumerator GetEnumerator() => this;
 
 		public bool MoveNext()
 		{

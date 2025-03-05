@@ -269,6 +269,7 @@ lobby-bits:
 		admin-anonymous: 34, 51, 16, 16
 		player-registered: 17, 51, 16, 16
 		player-anonymous: 51, 51, 16, 16
+		bot: 170, 51, 16, 16
 
 reload-icon:
 	Inherits: ^Glyphs
@@ -511,3 +512,14 @@ loadscreen-stripe:
 	Inherits: ^LoadScreen
 	PanelRegion: 258, 0, 0, 0, 253, 256, 0, 0
 	PanelSides: Center
+
+editor:
+	Inherits: ^Glyphs
+	Regions:
+		select: 51, 144, 16, 16
+		tiles: 0, 144, 16, 16
+		overlays: 17, 144, 16, 16
+		actors: 34, 68, 16, 16
+		tools: 34, 144, 16, 16
+		history: 136, 51, 16, 16
+		erase: 67, 144, 16, 16

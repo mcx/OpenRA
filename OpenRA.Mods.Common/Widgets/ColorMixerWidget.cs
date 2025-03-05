@@ -68,14 +68,12 @@ namespace OpenRA.Mods.Common.Widgets
 				// Generate palette in HSV
 				fixed (byte* cc = &buffer[0])
 				{
-					var c = (int*)cc;
+					var c = (uint*)cc;
 					for (var v = 0; v < 256; v++)
 					{
 						for (var s = 0; s < 256; s++)
 						{
-							#pragma warning disable IDE0047
-							(*(c + s * 256 + v)) = Color.FromAhsv(newHue.Value, 1 - s / 255f, v / 255f).ToArgb();
-							#pragma warning restore IDE0047
+							*(c + s * 256 + v) = Color.FromAhsv(newHue.Value, 1 - s / 255f, v / 255f).ToArgb();
 						}
 					}
 				}

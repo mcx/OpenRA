@@ -10,11 +10,11 @@
 #endregion
 
 using System;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using OpenRA.Graphics;
 using OpenRA.Mods.Common.Terrain;
-using OpenRA.Mods.Common.Traits;
 using OpenRA.Widgets;
 
 namespace OpenRA.Mods.Common.Widgets.Logic
@@ -32,14 +32,13 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 			{
 				Template = template;
 				Categories = template.Categories;
-				Tooltip = template.Id.ToString();
+				Tooltip = template.Id.ToString(NumberFormatInfo.CurrentInfo);
 				SearchTerms = new[] { Tooltip };
 			}
 		}
 
 		readonly ITemplatedTerrainInfo terrainInfo;
 		readonly TileSelectorTemplate[] allTemplates;
-		readonly EditorCursorLayer editorCursor;
 
 		[ObjectCreator.UseCtor]
 		public TileSelectorLogic(Widget widget, ModData modData, World world, WorldRenderer worldRenderer)
@@ -50,7 +49,6 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				throw new InvalidDataException("TileSelectorLogic requires a template-based tileset.");
 
 			allTemplates = terrainInfo.Templates.Values.Select(t => new TileSelectorTemplate(t)).ToArray();
-			editorCursor = world.WorldActor.Trait<EditorCursorLayer>();
 
 			allCategories = allTemplates.SelectMany(t => t.Categories)
 				.Distinct()
@@ -71,7 +69,7 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				if (!string.IsNullOrEmpty(searchFilter))
 					FilteredCategories.AddRange(
 						allTemplates.Where(t => t.SearchTerms.Any(
-							s => s.IndexOf(searchFilter, StringComparison.OrdinalIgnoreCase) >= 0))
+							s => s.Contains(searchFilter, StringComparison.CurrentCultureIgnoreCase)))
 						.SelectMany(t => t.Categories)
 						.Distinct()
 						.OrderBy(CategoryOrder));
@@ -101,12 +99,13 @@ namespace OpenRA.Mods.Common.Widgets.Logic
 				if (!SelectedCategories.Overlaps(t.Categories))
 					continue;
 
-				if (!string.IsNullOrEmpty(searchFilter) && !t.SearchTerms.Any(s => s.IndexOf(searchFilter, StringComparison.OrdinalIgnoreCase) >= 0))
+				if (!string.IsNullOrEmpty(searchFilter) &&
+					!t.SearchTerms.Any(s => s.Contains(searchFilter, StringComparison.CurrentCultureIgnoreCase)))
 					continue;
 
 				var tileId = t.Template.Id;
 				var item = ScrollItemWidget.Setup(ItemTemplate,
-					() => editorCursor.Type == EditorCursorType.TerrainTemplate && editorCursor.TerrainTemplate.Id == tileId,
+					() => Editor.CurrentBrush is EditorTileBrush editorCursor && editorCursor.TerrainTemplate.Id == tileId,
 					() => Editor.SetBrush(new EditorTileBrush(Editor, tileId, WorldRenderer)));
 
 				var preview = item.Get<TerrainTemplatePreviewWidget>("TILE_PREVIEW");

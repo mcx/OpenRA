@@ -23,7 +23,7 @@ namespace OpenRA.Mods.Common.Installer
 		public void RunActionOnSource(MiniYaml actionYaml, string path, ModData modData, List<string> extracted,
 			Action<string> updateMessage)
 		{
-			var zipPath = actionYaml.Value.StartsWith("^")
+			var zipPath = actionYaml.Value.StartsWith('^')
 				? Platform.ResolvePath(actionYaml.Value)
 				: FS.ResolveCaseInsensitivePath(Path.Combine(path, actionYaml.Value));
 
@@ -49,7 +49,9 @@ namespace OpenRA.Mods.Common.Installer
 					using (var targetStream = File.OpenWrite(targetPath))
 						sourceStream.CopyTo(targetStream);
 
-					updateMessage(TranslationProvider.GetString(InstallFromSourceLogic.ExtractingProgress, Translation.Arguments("filename", displayFilename, "progress", 100)));
+					updateMessage(FluentProvider.GetMessage(InstallFromSourceLogic.ExtractingProgress,
+						"filename", displayFilename,
+						"progress", 100));
 
 					extracted.Add(targetPath);
 				}

@@ -354,7 +354,7 @@ namespace OpenRA.Support
 						if (cc != CharClass.Digit)
 						{
 							if (cc != CharClass.Whitespace && cc != CharClass.Operator && cc != CharClass.Mixed)
-								throw new InvalidDataException($"Number {int.Parse(expression[start..i])} and variable merged at index {start}");
+								throw new InvalidDataException($"Number {Exts.ParseInt32Invariant(expression[start..i])} and variable merged at index {start}");
 
 							return true;
 						}
@@ -571,7 +571,7 @@ namespace OpenRA.Support
 			public NumberToken(int index, string symbol)
 				: base(TokenType.Number, index)
 			{
-				Value = int.Parse(symbol);
+				Value = Exts.ParseInt32Invariant(symbol);
 				this.symbol = symbol;
 			}
 		}
@@ -629,7 +629,8 @@ namespace OpenRA.Support
 					if (lastToken.RightOperand == token.LeftOperand)
 					{
 						if (lastToken.RightOperand)
-							throw new InvalidDataException($"Missing value or sub-expression or there is an extra operator `{lastToken.Symbol}` at index {lastToken.Index} or `{token.Symbol}` at index {token.Index}");
+							throw new InvalidDataException("Missing value or sub-expression or there is an extra operator " +
+								$"`{lastToken.Symbol}` at index {lastToken.Index} or `{token.Symbol}` at index {token.Index}");
 						throw new InvalidDataException($"Missing binary operation before `{token.Symbol}` at index {token.Index}");
 					}
 				}
@@ -676,7 +677,7 @@ namespace OpenRA.Support
 				else if (t.Closes != Grouping.None)
 				{
 					Token temp;
-					while (!((temp = s.Pop()).Opens != Grouping.None))
+					while ((temp = s.Pop()).Opens == Grouping.None)
 						yield return temp;
 				}
 				else if (t.OperandSides == Sides.None)
@@ -736,7 +737,10 @@ namespace OpenRA.Support
 						return IfThenElse(expression, One, Zero);
 				}
 
-				throw new InvalidProgramException($"Unable to convert ExpressionType.{Enum<ExpressionType>.GetValues()[(int)fromType]} to ExpressionType.{Enum<ExpressionType>.GetValues()[(int)toType]}");
+				throw new InvalidProgramException(
+					"Unable to convert " +
+					$"ExpressionType.{Enum<ExpressionType>.GetValues()[(int)fromType]} to " +
+					$"ExpressionType.{Enum<ExpressionType>.GetValues()[(int)toType]}");
 			}
 
 			public Expression Pop(ExpressionType type)
@@ -750,13 +754,11 @@ namespace OpenRA.Support
 			public void Push(Expression expression, ExpressionType type)
 			{
 				expressions.Add(expression);
-				if (type == ExpressionType.Int)
-					if (expression.Type != typeof(int))
-						throw new InvalidOperationException($"Expected System.Int type instead of {expression.Type} for {expression}");
+				if (type == ExpressionType.Int && expression.Type != typeof(int))
+					throw new InvalidOperationException($"Expected System.Int type instead of {expression.Type} for {expression}");
 
-				if (type == ExpressionType.Bool)
-					if (expression.Type != typeof(bool))
-						throw new InvalidOperationException($"Expected System.Boolean type instead of {expression.Type} for {expression}");
+				if (type == ExpressionType.Bool && expression.Type != typeof(bool))
+					throw new InvalidOperationException($"Expected System.Boolean type instead of {expression.Type} for {expression}");
 				types.Add(type);
 			}
 
@@ -935,7 +937,9 @@ namespace OpenRA.Support
 						}
 
 						default:
-							throw new InvalidProgramException($"ConditionExpression.Compiler.Compile() is missing an expression builder for TokenType.{Enum<TokenType>.GetValues()[(int)t.Type]}");
+							throw new InvalidProgramException(
+								"ConditionExpression.Compiler.Compile() is missing an expression builder for " +
+								$"TokenType.{Enum<TokenType>.GetValues()[(int)t.Type]}");
 					}
 				}
 

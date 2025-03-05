@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using SDL2;
@@ -49,6 +50,7 @@ namespace OpenRA.Platforms.Default
 
 		// Data types
 		public const int GL_UNSIGNED_BYTE = 0x1401;
+		public const int GL_UNSIGNED_INT = 0x1405;
 		public const int GL_FLOAT = 0x1406;
 
 		// Errors
@@ -130,6 +132,8 @@ namespace OpenRA.Platforms.Default
 		public const int GL_TEXTURE_MAX_LEVEL = 0x813D;
 
 		public const int GL_ARRAY_BUFFER = 0x8892;
+		public const int GL_ELEMENT_ARRAY_BUFFER = 0x8893;
+		public const int GL_STATIC_DRAW = 0x88E4;
 		public const int GL_DYNAMIC_DRAW = 0x88E8;
 
 		public const int GL_TEXTURE0 = 0x84C0;
@@ -382,6 +386,10 @@ namespace OpenRA.Platforms.Default
 			int stride, IntPtr pointer);
 		public static VertexAttribPointer glVertexAttribPointer { get; private set; }
 
+		public delegate void VertexAttribIPointer(int index, int size, int type,
+			int stride, IntPtr pointer);
+		public static VertexAttribIPointer glVertexAttribIPointer { get; private set; }
+
 		public delegate void EnableVertexAttribArray(int index);
 		public static EnableVertexAttribArray glEnableVertexAttribArray { get; private set; }
 
@@ -390,6 +398,9 @@ namespace OpenRA.Platforms.Default
 
 		public delegate void DrawArrays(int mode, int first, int count);
 		public static DrawArrays glDrawArrays { get; private set; }
+
+		public delegate void DrawElements(int mode, int count, int type, IntPtr indices);
+		public static DrawElements glDrawElements { get; private set; }
 
 		public delegate void Enable(int cap);
 		public static Enable glEnable { get; private set; }
@@ -434,6 +445,10 @@ namespace OpenRA.Platforms.Default
 		public delegate void TexImage2D(int target, int level, int internalFormat,
 			int width, int height, int border, int format, int type, IntPtr pixels);
 		public static TexImage2D glTexImage2D { get; private set; }
+
+		public delegate void CopyTexImage2D(int target, int level, int internalFormat,
+			int x, int y, int width, int height, int border);
+		public static CopyTexImage2D glCopyTexImage2D { get; private set; }
 
 		public delegate void GetTexImage(int target, int level,
 			int format, int type, IntPtr pixels);
@@ -480,7 +495,7 @@ namespace OpenRA.Platforms.Default
 
 		#endregion
 
-		public static void Initialize(bool preferLegacyProfile)
+		public static void Initialize()
 		{
 			try
 			{
@@ -497,7 +512,7 @@ namespace OpenRA.Platforms.Default
 				throw new InvalidProgramException("Failed to initialize low-level OpenGL bindings. GPU information is not available.", e);
 			}
 
-			if (!DetectGLFeatures(preferLegacyProfile))
+			if (!DetectGLFeatures())
 			{
 				WriteGraphicsLog("Unsupported OpenGL version: " + glGetString(GL_VERSION));
 				throw new InvalidProgramException("OpenGL Version Error: See graphics.log for details.");
@@ -584,9 +599,11 @@ namespace OpenRA.Platforms.Default
 				glDeleteBuffers = Bind<DeleteBuffers>("glDeleteBuffers");
 				glBindAttribLocation = Bind<BindAttribLocation>("glBindAttribLocation");
 				glVertexAttribPointer = Bind<VertexAttribPointer>("glVertexAttribPointer");
+				glVertexAttribIPointer = Bind<VertexAttribIPointer>("glVertexAttribIPointer");
 				glEnableVertexAttribArray = Bind<EnableVertexAttribArray>("glEnableVertexAttribArray");
 				glDisableVertexAttribArray = Bind<DisableVertexAttribArray>("glDisableVertexAttribArray");
 				glDrawArrays = Bind<DrawArrays>("glDrawArrays");
+				glDrawElements = Bind<DrawElements>("glDrawElements");
 				glBlendEquation = Bind<BlendEquation>("glBlendEquation");
 				glBlendEquationSeparate = Bind<BlendEquationSeparate>("glBlendEquationSeparate");
 				glBlendFunc = Bind<BlendFunc>("glBlendFunc");
@@ -599,52 +616,33 @@ namespace OpenRA.Platforms.Default
 				glBindTexture = Bind<BindTexture>("glBindTexture");
 				glActiveTexture = Bind<ActiveTexture>("glActiveTexture");
 				glTexImage2D = Bind<TexImage2D>("glTexImage2D");
+				glCopyTexImage2D = Bind<CopyTexImage2D>("glCopyTexImage2D");
 				glTexParameteri = Bind<TexParameteri>("glTexParameteri");
 				glTexParameterf = Bind<TexParameterf>("glTexParameterf");
 
-				if (Profile != GLProfile.Legacy)
+				if (Profile != GLProfile.Embedded)
 				{
-					if (Profile != GLProfile.Embedded)
-					{
-						glGetTexImage = Bind<GetTexImage>("glGetTexImage");
-						glBindFragDataLocation = Bind<BindFragDataLocation>("glBindFragDataLocation");
-					}
-					else
-					{
-						glGetTexImage = null;
-						glBindFragDataLocation = null;
-					}
-
-					glGenVertexArrays = Bind<GenVertexArrays>("glGenVertexArrays");
-					glBindVertexArray = Bind<BindVertexArray>("glBindVertexArray");
-					glGenFramebuffers = Bind<GenFramebuffers>("glGenFramebuffers");
-					glBindFramebuffer = Bind<BindFramebuffer>("glBindFramebuffer");
-					glFramebufferTexture2D = Bind<FramebufferTexture2D>("glFramebufferTexture2D");
-					glDeleteFramebuffers = Bind<DeleteFramebuffers>("glDeleteFramebuffers");
-					glGenRenderbuffers = Bind<GenRenderbuffers>("glGenRenderbuffers");
-					glBindRenderbuffer = Bind<BindRenderbuffer>("glBindRenderbuffer");
-					glRenderbufferStorage = Bind<RenderbufferStorage>("glRenderbufferStorage");
-					glDeleteRenderbuffers = Bind<DeleteRenderbuffers>("glDeleteRenderbuffers");
-					glFramebufferRenderbuffer = Bind<FramebufferRenderbuffer>("glFramebufferRenderbuffer");
-					glCheckFramebufferStatus = Bind<CheckFramebufferStatus>("glCheckFramebufferStatus");
+					glGetTexImage = Bind<GetTexImage>("glGetTexImage");
+					glBindFragDataLocation = Bind<BindFragDataLocation>("glBindFragDataLocation");
 				}
 				else
 				{
-					glGenVertexArrays = null;
-					glBindVertexArray = null;
+					glGetTexImage = null;
 					glBindFragDataLocation = null;
-					glGetTexImage = Bind<GetTexImage>("glGetTexImage");
-					glGenFramebuffers = Bind<GenFramebuffers>("glGenFramebuffersEXT");
-					glBindFramebuffer = Bind<BindFramebuffer>("glBindFramebufferEXT");
-					glFramebufferTexture2D = Bind<FramebufferTexture2D>("glFramebufferTexture2DEXT");
-					glDeleteFramebuffers = Bind<DeleteFramebuffers>("glDeleteFramebuffersEXT");
-					glGenRenderbuffers = Bind<GenRenderbuffers>("glGenRenderbuffersEXT");
-					glBindRenderbuffer = Bind<BindRenderbuffer>("glBindRenderbufferEXT");
-					glRenderbufferStorage = Bind<RenderbufferStorage>("glRenderbufferStorageEXT");
-					glDeleteRenderbuffers = Bind<DeleteRenderbuffers>("glDeleteRenderbuffersEXT");
-					glFramebufferRenderbuffer = Bind<FramebufferRenderbuffer>("glFramebufferRenderbufferEXT");
-					glCheckFramebufferStatus = Bind<CheckFramebufferStatus>("glCheckFramebufferStatusEXT");
 				}
+
+				glGenVertexArrays = Bind<GenVertexArrays>("glGenVertexArrays");
+				glBindVertexArray = Bind<BindVertexArray>("glBindVertexArray");
+				glGenFramebuffers = Bind<GenFramebuffers>("glGenFramebuffers");
+				glBindFramebuffer = Bind<BindFramebuffer>("glBindFramebuffer");
+				glFramebufferTexture2D = Bind<FramebufferTexture2D>("glFramebufferTexture2D");
+				glDeleteFramebuffers = Bind<DeleteFramebuffers>("glDeleteFramebuffers");
+				glGenRenderbuffers = Bind<GenRenderbuffers>("glGenRenderbuffers");
+				glBindRenderbuffer = Bind<BindRenderbuffer>("glBindRenderbuffer");
+				glRenderbufferStorage = Bind<RenderbufferStorage>("glRenderbufferStorage");
+				glDeleteRenderbuffers = Bind<DeleteRenderbuffers>("glDeleteRenderbuffers");
+				glFramebufferRenderbuffer = Bind<FramebufferRenderbuffer>("glFramebufferRenderbuffer");
+				glCheckFramebufferStatus = Bind<CheckFramebufferStatus>("glCheckFramebufferStatus");
 			}
 			catch (Exception e)
 			{
@@ -658,7 +656,7 @@ namespace OpenRA.Platforms.Default
 			return (T)(object)Marshal.GetDelegateForFunctionPointer(SDL.SDL_GL_GetProcAddress(name), typeof(T));
 		}
 
-		public static bool DetectGLFeatures(bool preferLegacyProfile)
+		public static bool DetectGLFeatures()
 		{
 			var hasValidConfiguration = false;
 			try
@@ -676,9 +674,10 @@ namespace OpenRA.Platforms.Default
 						break;
 				}
 
-				// Core features are defined as the shared feature set of GL 3.2 and (GLES 3 + BGRA extension)
+				// Core features are defined as the shared feature set of GL 3.2 and (GLES 3 + derivatives, BGRA extensions)
 				var hasBGRA = SDL.SDL_GL_ExtensionSupported("GL_EXT_texture_format_BGRA8888") == SDL.SDL_bool.SDL_TRUE;
-				if (Version.Contains(" ES") && hasBGRA && major >= 3)
+				var hasDerivatives = SDL.SDL_GL_ExtensionSupported("GL_OES_standard_derivatives") == SDL.SDL_bool.SDL_TRUE;
+				if (Version.Contains(" ES") && hasBGRA && hasDerivatives && major >= 3)
 				{
 					hasValidConfiguration = true;
 					Profile = GLProfile.Embedded;
@@ -695,15 +694,6 @@ namespace OpenRA.Platforms.Default
 				var hasDebugMessagesCallback = SDL.SDL_GL_ExtensionSupported("GL_KHR_debug") == SDL.SDL_bool.SDL_TRUE;
 				if (hasDebugMessagesCallback)
 					Features |= GLFeatures.DebugMessagesCallback;
-
-				if (preferLegacyProfile || (major == 2 && minor == 1) || (major == 3 && minor < 2))
-				{
-					if (SDL.SDL_GL_ExtensionSupported("GL_EXT_framebuffer_object") == SDL.SDL_bool.SDL_TRUE)
-					{
-						hasValidConfiguration = true;
-						Profile = GLProfile.Legacy;
-					}
-				}
 			}
 			catch (Exception) { }
 
@@ -730,14 +720,9 @@ namespace OpenRA.Platforms.Default
 			Log.Write("graphics", $"Shader Version: {glGetString(GL_SHADING_LANGUAGE_VERSION)}");
 			Log.Write("graphics", "Available extensions:");
 
-			if (Profile != GLProfile.Legacy)
-			{
-				glGetIntegerv(GL_NUM_EXTENSIONS, out var extensionCount);
-				for (var i = 0; i < extensionCount; i++)
-					Log.Write("graphics", glGetStringi(GL_EXTENSIONS, (uint)i));
-			}
-			else
-				Log.Write("graphics", glGetString(GL_EXTENSIONS));
+			glGetIntegerv(GL_NUM_EXTENSIONS, out var extensionCount);
+			for (var i = 0; i < extensionCount; i++)
+				Log.Write("graphics", glGetStringi(GL_EXTENSIONS, (uint)i));
 		}
 
 		public static void CheckGLError()
@@ -750,15 +735,20 @@ namespace OpenRA.Platforms.Default
 			if (type == GL_NO_ERROR)
 				return;
 
-			string errorText;
-			errorText = ErrorToText.TryGetValue(type, out errorText) ? errorText : type.ToString("X");
-			var error = $"GL Error: {errorText}\n{new StackTrace()}";
+			var errors = new List<int>();
+			do
+			{
+				errors.Add(type);
+				type = glGetError();
+			}
+			while (type != GL_NO_ERROR);
 
-			WriteGraphicsLog(error);
+			var stringErrors = string.Join(',', errors.Select(error => ErrorToText.TryGetValue(error, out var errorText) ? errorText : error.ToStringInvariant("X")));
+			WriteGraphicsLog($"GL Errors: {stringErrors}\n{new StackTrace()}");
 
 			const string exceptionMessage = "OpenGL Error: See graphics.log for details.";
 
-			if (type == GL_OUT_OF_MEMORY)
+			if (errors.Contains(GL_OUT_OF_MEMORY))
 				throw new OutOfMemoryException(exceptionMessage);
 
 			throw new InvalidOperationException(exceptionMessage);
@@ -788,9 +778,9 @@ namespace OpenRA.Platforms.Default
 			string typeText;
 			string severityText;
 
-			sourceText = DebugSourceToText.TryGetValue(source, out sourceText) ? sourceText : source.ToString("X");
-			typeText = DebugTypeToText.TryGetValue(type, out typeText) ? typeText : type.ToString("X");
-			severityText = DebugSeverityToText.TryGetValue(severity, out severityText) ? severityText : severity.ToString("X");
+			sourceText = DebugSourceToText.TryGetValue(source, out sourceText) ? sourceText : source.ToStringInvariant("X");
+			typeText = DebugTypeToText.TryGetValue(type, out typeText) ? typeText : type.ToStringInvariant("X");
+			severityText = DebugSeverityToText.TryGetValue(severity, out severityText) ? severityText : severity.ToStringInvariant("X");
 			var messageText = message.ToString();
 
 			return $"{severityText} - GL Debug {sourceText} Output: {typeText} - {messageText}\n{new StackTrace()}";

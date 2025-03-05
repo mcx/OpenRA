@@ -11,6 +11,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using OpenRA.Widgets;
 
@@ -47,7 +48,7 @@ namespace OpenRA.Mods.Common.Lint
 
 			foreach (var w in modData.ObjectCreator.GetTypesImplementing<Widget>())
 			{
-				foreach (var m in w.GetMethods().Where(m => Utility.HasAttribute<CustomLintableHotkeyNames>(m)))
+				foreach (var m in w.GetMethods().Where(Utility.HasAttribute<CustomLintableHotkeyNames>))
 				{
 					var p = m.GetParameters();
 					if (p.Length == 3 && p[0].ParameterType == typeof(MiniYamlNode) && p[1].ParameterType == typeof(Action<string>)
@@ -63,8 +64,15 @@ namespace OpenRA.Mods.Common.Lint
 			}
 		}
 
-		void CheckInner(ModData modData, string[] namedKeys, (string Widget, string Field)[] checkWidgetFields, Dictionary<string, List<string>> customLintMethods,
-			List<MiniYamlNode> nodes, string filename, MiniYamlNode parent, Action<string> emitError)
+		static void CheckInner(
+			ModData modData,
+			string[] namedKeys,
+			(string Widget, string Field)[] checkWidgetFields,
+			Dictionary<string, List<string>> customLintMethods,
+			IEnumerable<MiniYamlNode> nodes,
+			string filename,
+			MiniYamlNode parent,
+			Action<string> emitError)
 		{
 			foreach (var node in nodes)
 			{
@@ -94,7 +102,7 @@ namespace OpenRA.Mods.Common.Lint
 				}
 
 				// Logic classes can declare the data key names that specify hotkeys.
-				if (node.Key == "Logic" && node.Value.Nodes.Count > 0)
+				if (node.Key == "Logic" && node.Value.Nodes.Length > 0)
 				{
 					var typeNames = FieldLoader.GetValue<string[]>(node.Key, node.Value.Value);
 					var checkArgKeys = new List<string>();
@@ -108,9 +116,10 @@ namespace OpenRA.Mods.Common.Lint
 					}
 
 					foreach (var n in node.Value.Nodes)
-						if (checkArgKeys.Contains(n.Key))
-							if (!namedKeys.Contains(n.Value.Value) && !Hotkey.TryParse(n.Value.Value, out var unused))
-								emitError($"{filename} {node.Value.Value}:{n.Key} refers to a Key named `{n.Value.Value}` that does not exist.");
+						if (checkArgKeys.Contains(n.Key) &&
+							!namedKeys.Contains(n.Value.Value) &&
+							!Hotkey.TryParse(n.Value.Value, out var unused))
+							emitError($"{filename} {node.Value.Value}:{n.Key} refers to a Key named `{n.Value.Value}` that does not exist.");
 				}
 
 				if (node.Value.Nodes != null)

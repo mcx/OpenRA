@@ -22,6 +22,9 @@ namespace OpenRA.Network
 	{
 		const OrderPacket ClientDisconnected = null;
 
+		[FluentReference("frame")]
+		const string DesyncCompareLogs = "notification-desync-compare-logs";
+
 		readonly SyncReport syncReport;
 		readonly Dictionary<int, Queue<(int Frame, OrderPacket Orders)>> pendingOrders = new();
 		readonly Dictionary<int, (int SyncHash, ulong DefeatState)> syncForFrame = new();
@@ -35,6 +38,9 @@ namespace OpenRA.Network
 
 		public string ServerError = null;
 		public bool AuthenticationFailed = false;
+
+		// The default null means "no map restriction" while an empty set means "all maps restricted"
+		public HashSet<string> ServerMapPool = null;
 
 		public int NetFrameNumber { get; private set; }
 		public int LocalFrameNumber;
@@ -70,7 +76,7 @@ namespace OpenRA.Network
 			public int Client;
 			public Order Order;
 
-			public override string ToString()
+			public override readonly string ToString()
 			{
 				return $"ClientId: {Client} {Order}";
 			}
@@ -85,7 +91,7 @@ namespace OpenRA.Network
 			World.OutOfSync();
 			IsOutOfSync = true;
 
-			TextNotificationsManager.AddSystemLine($"Out of sync in frame {frame}.\nCompare syncreport.log with other players.");
+			TextNotificationsManager.AddSystemLine(DesyncCompareLogs, "frame", frame);
 		}
 
 		public void StartGame()

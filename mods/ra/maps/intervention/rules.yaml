@@ -1,17 +1,18 @@
 Player:
 	PlayerResources:
-		DefaultCash: 2000
+		DefaultCash: 2400
 
 World:
 	LuaScript:
 		Scripts: campaign.lua, utils.lua, intervention.lua
 	MissionData:
-		Briefing: The Soviet Air Force is flying air raids against a civilian village.\n\nWe have to do everything in our power to stop them!\n\nYour job is to establish a base on the mainland ASAP. We can prevent the village's destruction by capturing the enemy's Air Force Headquarters building. The enemy base is heavily guarded, though.  You will not have enough time to build a force big enough to overpower the Soviet defences. You will have to find a way to sneak in!\n\nGood luck, Commander!\n
+		Briefing: The Soviet Air Force is conducting air raids on a civilian village.\n\nWe must do everything in our power to stop them!\n\nYour job is to establish a base on the mainland ASAP. We can prevent the village's destruction by capturing the enemy's Air Force Headquarters. The enemy base is heavily guarded. You won't have time to build a force big enough to overpower the Soviet defenses. Find a way to sneak in!\n\nGood luck, Commander!\n
 	ScriptLobbyDropdown@difficulty:
 		ID: difficulty
 		Label: dropdown-difficulty.label
 		Description: dropdown-difficulty.description
 		Values:
+			easy: options-difficulty.easy
 			normal: options-difficulty.normal
 			hard: options-difficulty.hard
 		Default: normal
@@ -20,12 +21,20 @@ CAMERA:
 	RevealsShroud:
 		Range: 18c0
 
+CAMERA.hq:
+	Inherits: CAMERA
+	RevealsShroud:
+		Range: 8c0
+
+FLARE:
+	RevealsShroud:
+		Range: 5c0
+
 MISS:
 	Tooltip:
-		Name: Soviet Air Force HQ
+		Name: actor-air-force-hq-name
 	Capturable:
 		Types: building
-		ValidRelationships: Enemy
 	CaptureManager:
 
 TENT:
@@ -46,7 +55,7 @@ MAINLAND:
 	AlwaysVisible:
 	Interactable:
 	Tooltip:
-		Name: Reach the mainland
+		Name: actor-mainland-name
 	ProvidesPrerequisite:
 		Prerequisite: mainland
 
@@ -62,7 +71,7 @@ GIVEFIX:
 	AlwaysVisible:
 	Interactable:
 	Tooltip:
-		Name: Weapons Factory or Helipad
+		Name: actor-givefix-name
 
 MIG.SCRIPTED:
 	Inherits: MIG
@@ -74,6 +83,7 @@ MIG.SCRIPTED:
 		Ammo: 2
 	Aircraft:
 		IdleBehavior: LeaveMapAtClosestEdge
+		NumberOfTicksToVerifyAvailableAirport: 25
 
 HELI:
 	Buildable:

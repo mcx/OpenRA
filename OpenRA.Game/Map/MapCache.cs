@@ -38,7 +38,7 @@ namespace OpenRA
 		readonly object syncRoot = new();
 		readonly Queue<MapPreview> generateMinimap = new();
 
-		public Dictionary<string, string> StringPool { get; } = new Dictionary<string, string>();
+		public HashSet<string> StringPool { get; } = new();
 
 		readonly List<MapDirectoryTracker> mapDirectoryTrackers = new();
 
@@ -87,8 +87,6 @@ namespace OpenRA
 			if (!modData.Manifest.Contains<MapGrid>())
 				return;
 
-			var mapGrid = modData.Manifest.Get<MapGrid>();
-
 			// Enumerate map directories
 			foreach (var kv in modData.Manifest.MapFolders)
 			{
@@ -97,7 +95,7 @@ namespace OpenRA
 					? MapClassification.Unknown : Enum<MapClassification>.Parse(kv.Value);
 
 				IReadOnlyPackage package;
-				var optional = name.StartsWith("~", StringComparison.Ordinal);
+				var optional = name.StartsWith('~');
 				if (optional)
 					name = name[1..];
 
@@ -106,7 +104,7 @@ namespace OpenRA
 					// HACK: If the path is inside the support directory then we may need to create it
 					// Assume that the path is a directory if there is not an existing file with the same name
 					var resolved = Platform.ResolvePath(name);
-					if (resolved.StartsWith(Platform.SupportDir) && !File.Exists(resolved))
+					if (resolved.StartsWith(Platform.SupportDir, StringComparison.Ordinal) && !File.Exists(resolved))
 						Directory.CreateDirectory(resolved);
 
 					package = modData.ModFiles.OpenPackage(name);
@@ -120,27 +118,29 @@ namespace OpenRA
 				}
 
 				mapLocations.Add(package, classification);
-				mapDirectoryTrackers.Add(new MapDirectoryTracker(mapGrid, package, classification));
+				mapDirectoryTrackers.Add(new MapDirectoryTracker(package, classification));
 			}
 
 			// PERF: Load the mod YAML once outside the loop, and reuse it when resolving each maps custom YAML.
 			var modDataRules = modData.GetRulesYaml();
+			var gridType = modData.Manifest.Get<MapGrid>().Type;
 			foreach (var kv in MapLocations)
 			{
 				foreach (var map in kv.Key.Contents)
-					LoadMapInternal(map, kv.Key, kv.Value, mapGrid, null, modDataRules);
+					LoadMapInternal(map, kv.Key, kv.Value, null, gridType, modDataRules);
 			}
 
 			// We only want to track maps in runtime, not at loadtime
 			LastModifiedMap = null;
 		}
 
-		public void LoadMap(string map, IReadOnlyPackage package, MapClassification classification, MapGrid mapGrid, string oldMap)
+		public void LoadMap(string map, IReadOnlyPackage package, MapClassification classification, string oldMap)
 		{
-			LoadMapInternal(map, package, classification, mapGrid, oldMap, null);
+			LoadMapInternal(map, package, classification, oldMap);
 		}
 
-		void LoadMapInternal(string map, IReadOnlyPackage package, MapClassification classification, MapGrid mapGrid, string oldMap, IEnumerable<List<MiniYamlNode>> modDataRules)
+		void LoadMapInternal(string map, IReadOnlyPackage package, MapClassification classification, string oldMap,
+			MapGridType? gridType = null, IEnumerable<List<MiniYamlNode>> modDataRules = null)
 		{
 			IReadOnlyPackage mapPackage = null;
 			try
@@ -151,7 +151,8 @@ namespace OpenRA
 					if (mapPackage != null)
 					{
 						var uid = Map.ComputeUID(mapPackage);
-						previews[uid].UpdateFromMap(mapPackage, package, classification, modData.Manifest.MapCompatibility, mapGrid.Type, modDataRules);
+						previews[uid].UpdateFromMapWithoutOwningPackage(mapPackage, package, classification, gridType, modDataRules);
+						mapPackage.Dispose();
 
 						if (oldMap != uid)
 						{
@@ -190,13 +191,13 @@ namespace OpenRA
 					continue;
 
 				var name = kv.Key;
-				var optional = name.StartsWith("~", StringComparison.Ordinal);
+				var optional = name.StartsWith('~');
 				if (optional)
 					name = name[1..];
 
 				// Don't try to open the map directory in the support directory if it doesn't exist
 				var resolved = Platform.ResolvePath(name);
-				if (resolved.StartsWith(Platform.SupportDir) && (!Directory.Exists(resolved) || !File.Exists(resolved)))
+				if (resolved.StartsWith(Platform.SupportDir, StringComparison.Ordinal) && (!Directory.Exists(resolved) || !File.Exists(resolved)))
 					continue;
 
 				using (var package = (IReadWritePackage)modData.ModFiles.OpenPackage(name))
@@ -223,7 +224,8 @@ namespace OpenRA
 						yield return mapPackage;
 		}
 
-		public void QueryRemoteMapDetails(string repositoryUrl, IEnumerable<string> uids, Action<MapPreview> mapDetailsReceived = null, Action<MapPreview> mapQueryFailed = null)
+		public void QueryRemoteMapDetails(string repositoryUrl, IEnumerable<string> uids,
+			Action<MapPreview> mapDetailsReceived = null, Action<MapPreview> mapQueryFailed = null)
 		{
 			var queryUids = uids.Distinct()
 				.Where(uid => uid != null)
@@ -233,11 +235,12 @@ namespace OpenRA
 				.ToList();
 
 			foreach (var uid in queryUids)
-				previews[uid].UpdateRemoteSearch(MapStatus.Searching, null);
+				previews[uid].UpdateRemoteSearch(MapStatus.Searching, null, null);
 
 			Task.Run(async () =>
 			{
 				var client = HttpClientFactory.Create();
+				var stringPool = new HashSet<string>(); // Reuse common strings in YAML
 
 				// Limit each query to 50 maps at a time to avoid request size limits
 				for (var i = 0; i < queryUids.Count; i += 50)
@@ -249,7 +252,7 @@ namespace OpenRA
 						var httpResponseMessage = await client.GetAsync(url);
 						var result = await httpResponseMessage.Content.ReadAsStreamAsync();
 
-						var yaml = MiniYaml.FromStream(result);
+						var yaml = MiniYaml.FromStream(result, url, stringPool: stringPool);
 						foreach (var kv in yaml)
 							previews[kv.Key].UpdateRemoteSearch(MapStatus.DownloadAvailable, kv.Value, mapDetailsReceived);
 
@@ -257,7 +260,7 @@ namespace OpenRA
 						{
 							var p = previews[uid];
 							if (p.Status != MapStatus.DownloadAvailable)
-								p.UpdateRemoteSearch(MapStatus.Unavailable, null);
+								p.UpdateRemoteSearch(MapStatus.Unavailable, null, null);
 						}
 					}
 					catch (Exception e)
@@ -269,7 +272,7 @@ namespace OpenRA
 						foreach (var uid in batchUids)
 						{
 							var p = previews[uid];
-							p.UpdateRemoteSearch(MapStatus.Unavailable, null);
+							p.UpdateRemoteSearch(MapStatus.Unavailable, null, null);
 							mapQueryFailed?.Invoke(p);
 						}
 					}
@@ -282,11 +285,11 @@ namespace OpenRA
 			Log.Write("debug", "MapCache.LoadAsyncInternal started");
 
 			// Milliseconds to wait on one loop when nothing to do
-			var emptyDelay = 50;
+			const int EmptyDelay = 50;
 
 			// Keep the thread alive for at least 5 seconds after the last minimap generation
-			var maxKeepAlive = 5000 / emptyDelay;
-			var keepAlive = maxKeepAlive;
+			const int MaxKeepAlive = 5000 / EmptyDelay;
+			var keepAlive = MaxKeepAlive;
 
 			while (true)
 			{
@@ -306,11 +309,11 @@ namespace OpenRA
 
 				if (todo.Count == 0)
 				{
-					Thread.Sleep(emptyDelay);
+					Thread.Sleep(EmptyDelay);
 					continue;
 				}
 				else
-					keepAlive = maxKeepAlive;
+					keepAlive = MaxKeepAlive;
 
 				// Render the minimap into the shared sheet
 				foreach (var p in todo)
@@ -348,8 +351,8 @@ namespace OpenRA
 
 			while (this[uid].Status != MapStatus.Available)
 			{
-				if (mapUpdates.ContainsKey(uid))
-					uid = mapUpdates[uid];
+				if (mapUpdates.TryGetValue(uid, out var newUid))
+					uid = newUid;
 				else
 					return null;
 			}
@@ -406,10 +409,16 @@ namespace OpenRA
 		{
 			UpdateMaps();
 			var map = string.IsNullOrEmpty(initialUid) ? null : previews[initialUid];
-			if (map == null || map.Status != MapStatus.Available || !map.Visibility.HasFlag(MapVisibility.Lobby) || (map.Class != MapClassification.System && map.Class != MapClassification.User))
+			if (map == null ||
+				map.Status != MapStatus.Available ||
+				!map.Visibility.HasFlag(MapVisibility.Lobby) ||
+				(map.Class != MapClassification.System && map.Class != MapClassification.User))
 			{
 				var selected = previews.Values.Where(IsSuitableInitialMap).RandomOrDefault(random) ??
-					previews.Values.FirstOrDefault(m => m.Status == MapStatus.Available && m.Visibility.HasFlag(MapVisibility.Lobby) && (m.Class == MapClassification.System || m.Class == MapClassification.User));
+					previews.Values.FirstOrDefault(m =>
+					m.Status == MapStatus.Available &&
+					m.Visibility.HasFlag(MapVisibility.Lobby) &&
+					(m.Class == MapClassification.System || m.Class == MapClassification.User));
 				return selected == null ? string.Empty : selected.Uid;
 			}
 

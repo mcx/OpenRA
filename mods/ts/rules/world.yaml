@@ -8,6 +8,8 @@
 	MusicPlaylist:
 		VictoryMusic: score
 		DefeatMusic: fsmap
+	VoxelCache:
+	ModelRenderer:
 	TerrainRenderer:
 	TerrainLighting:
 	ShroudRenderer:
@@ -187,18 +189,18 @@
 			Rail: 100
 		Crushes: wall, crate, infantry
 	Faction@Random:
-		Name: Any
+		Name: faction-random.name
 		InternalName: Random
 		RandomFactionMembers: gdi, nod
-		Description: Random Faction\nA random faction will be chosen when the game starts.
-	Faction@0:
-		Name: GDI
+		Description: faction-random.description
+	Faction@gdi:
+		Name: faction-gdi.name
 		InternalName: gdi
-		Description: Global Defense Initiative\nThe GDI is an international military branch of the United Nations tasked\nwith keeping world peace. Commanding the combined forces of the world's\nmost powerful nations, they possess an unmatched arsenal of high-tech weaponry.
-	Faction@1:
-		Name: Nod
+		Description: faction-gdi.description
+	Faction@nod:
+		Name: faction-nod.name
 		InternalName: nod
-		Description: Brotherhood of Nod\nThe Brotherhood is a religious cult centered around their leader Kane\nand the alien substance Tiberium. They utilize stealth technology\nand guerilla tactics to defeat those who oppose them.
+		Description: faction-nod.description
 	TerrainGeometryOverlay:
 	DebugVisualizations:
 	CliffBackImpassabilityLayer:
@@ -207,11 +209,11 @@
 			Tiberium:
 				Sequences: tib01, tib02, tib03, tib04, tib05, tib06, tib07, tib08, tib09, tib10, tib11, tib12
 				Palette: greentiberium
-				Name: Tiberium
+				Name: resource-tiberium
 			BlueTiberium:
 				Sequences: tib01, tib02, tib03, tib04, tib05, tib06, tib07, tib08, tib09, tib10, tib11, tib12
 				Palette: bluetiberium
-				Name: Tiberium
+				Name: resource-tiberium
 		Ramp1Sequences:
 			Tiberium: tib13, tib14
 			BlueTiberium: tib13, tib14
@@ -226,7 +228,7 @@
 			BlueTiberium: tib19, tib20
 	TSVeinsRenderer:
 		ResourceType: Veins
-		Name: Veins
+		Name: resource-veins
 		Palette: player
 		VeinholeActors: veinhole
 
@@ -234,6 +236,7 @@ World:
 	Inherits: ^BaseWorld
 	ChatCommands:
 	DevCommands:
+	AutoSave:
 	DebugVisualizationCommands:
 	PathFinderOverlay:
 	HierarchicalPathFinderOverlay:
@@ -248,18 +251,21 @@ World:
 		SmokeImage: smallfire
 		SmokeSequences: idle
 		SmokeChance: 50
+		MaxSmokeOffsetDistance: 256
 	SmudgeLayer@MEDIUMSCORCH:
 		Type: MediumScorch
 		Sequence: mediumscorches
 		SmokeImage: mediumfire
 		SmokeSequences: idle
 		SmokeChance: 75
+		MaxSmokeOffsetDistance: 192
 	SmudgeLayer@LARGESCORCH:
 		Type: LargeScorch
 		Sequence: largescorches
 		SmokeImage: largefire
 		SmokeSequences: idle
 		SmokeChance: 100
+		MaxSmokeOffsetDistance: 128
 	SmudgeLayer@SMALLCRATER:
 		Type: SmallCrater
 		Sequence: smallcraters
@@ -417,12 +423,10 @@ EditorWorld:
 				AllowedTerrainTypes: Clear, Rough, DirtRoad
 				MaxDensity: 2
 		VeinholeActors: veinhole
-	EditorSelectionLayer:
-		Palette: ra
-		FootprintAlpha: 0.7
 	LoadWidgetAtGameStart:
 	EditorActionManager:
 	BuildableTerrainOverlay:
 		AllowedTerrainTypes: Clear, Rough, Road, DirtRoad, Green, Sand, Pavement
 		Palette: ra
 		Alpha: 0.35
+	MarkerLayerOverlay:

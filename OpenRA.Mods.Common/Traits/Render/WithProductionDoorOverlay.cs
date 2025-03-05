@@ -10,6 +10,7 @@
 #endregion
 
 using System.Collections.Generic;
+using System.Linq;
 using OpenRA.Graphics;
 using OpenRA.Mods.Common.Graphics;
 using OpenRA.Traits;
@@ -17,7 +18,8 @@ using OpenRA.Traits;
 namespace OpenRA.Mods.Common.Traits.Render
 {
 	[Desc("Play an animation when a unit exits or blocks the exit after production finished.")]
-	sealed class WithProductionDoorOverlayInfo : ConditionalTraitInfo, IRenderActorPreviewSpritesInfo, Requires<RenderSpritesInfo>, Requires<BodyOrientationInfo>, Requires<BuildingInfo>
+	sealed class WithProductionDoorOverlayInfo : ConditionalTraitInfo,
+		IRenderActorPreviewSpritesInfo, Requires<RenderSpritesInfo>, Requires<BodyOrientationInfo>, Requires<BuildingInfo>
 	{
 		[SequenceReference]
 		public readonly string Sequence = "build-door";
@@ -61,7 +63,8 @@ namespace OpenRA.Mods.Common.Traits.Render
 			if (exitingActor == null)
 				return;
 
-			if (!exitingActor.IsInWorld || exitingActor.Location != openExit || exitingActor.CurrentActivity is not Mobile.ReturnToCellActivity)
+			if (!exitingActor.IsInWorld || exitingActor.Location != openExit
+				|| (!exitingActor.CurrentActivity?.ActivitiesImplementing<Mobile.ReturnToCellActivity>().Any() ?? true))
 			{
 				desiredFrame = 0;
 				exitingActor = null;

@@ -10,13 +10,19 @@ V19:
 		Dimensions: 1,1
 	Health:
 		HP: 80000
+	Encyclopedia:
+		Description: actor-v19.encyclopedia
+		Order: 0
+		Category: Civilian
+		Scale: 2
+		PreviewOwner: GDI
 	Tooltip:
-		Name: Oil Derrick
+		Name: actor-v19.name
 	TooltipDescription@ally:
-		Description: Provides additional funds.
+		Description: actor-v19.captured-desc
 		ValidRelationships: Ally
 	TooltipDescription@other:
-		Description: Capture to receive additional funds.
+		Description: actor-v19.capturable-desc
 		ValidRelationships: Neutral, Enemy
 	SpawnActorOnDeath:
 		Actor: V19.Husk
@@ -36,7 +42,7 @@ V19.Husk:
 		Footprint: x
 		Dimensions: 1,1
 	Tooltip:
-		Name: Oil Derrick (Destroyed)
+		Name: actor-v19-husk-name
 
 HOSP:
 	Inherits: ^TechBuilding
@@ -48,13 +54,19 @@ HOSP:
 		Dimensions: 2,2
 	Health:
 		HP: 250000
+	Encyclopedia:
+		Description: actor-hosp.encyclopedia
+		Order: 10
+		Category: Civilian
+		Scale: 2
+		PreviewOwner: GDI
 	Tooltip:
-		Name: Hospital
+		Name: actor-hosp.name
 	TooltipDescription@ally:
-		Description: Provides infantry with self-healing.
+		Description: actor-hosp.captured-desc
 		ValidRelationships: Ally
 	TooltipDescription@other:
-		Description: Capture to enable self-healing for infantry.
+		Description: actor-hosp.capturable-desc
 		ValidRelationships: Neutral, Enemy
 	SpawnActorOnDeath:
 		Actor: HOSP.Husk
@@ -70,7 +82,7 @@ HOSP.Husk:
 		Footprint: xx xx
 		Dimensions: 2,2
 	Tooltip:
-		Name: Hospital (Destroyed)
+		Name: actor-hosp-husk-name
 	WithBuildingBib:
 		HasMinibib: true
 
@@ -84,13 +96,19 @@ BIO:
 		Dimensions: 2,2
 	Health:
 		HP: 250000
+	Encyclopedia:
+		Description: actor-bio.encyclopedia
+		Order: 10
+		Category: Civilian
+		Scale: 2
+		PreviewOwner: GDI
 	Tooltip:
-		Name: Biological Lab
+		Name: actor-bio.name
 	TooltipDescription@ally:
-		Description: Provides infantry with Tiberium immunity.
+		Description: actor-bio.captured-desc
 		ValidRelationships: Ally
 	TooltipDescription@other:
-		Description: Capture to enable Tiberium immunity for infantry.
+		Description: actor-bio.capturable-desc
 		ValidRelationships: Neutral, Enemy
 	SpawnActorOnDeath:
 		Actor: BIO.Husk
@@ -104,7 +122,7 @@ BIO.Husk:
 		Footprint: xx xx
 		Dimensions: 2,2
 	Tooltip:
-		Name: Biological Lab (Destroyed)
+		Name: actor-bio-husk-name
 
 MISS:
 	Inherits: ^TechBuilding
@@ -118,7 +136,7 @@ MISS:
 		Footprint: xxx xxx
 		Dimensions: 3,2
 	Tooltip:
-		Name: Tech Center
+		Name: actor-miss.name
 	Buildable:
 		Queue: Building
 		BuildPaletteOrder: 1000
@@ -127,13 +145,20 @@ MISS:
 		Cost: 0
 	Health:
 		HP: 80000
+	Encyclopedia:
+		Description: actor-miss.encyclopedia
+		Order: 20
+		Category: Civilian
+		Scale: 2
+		HideBuildable: true
+		PreviewOwner: GDI
 	RevealsShroud:
 		Range: 13c0
 	TooltipDescription@ally:
-		Description: Provides range of vision.
+		Description: actor-miss.captured-desc
 		ValidRelationships: Ally
 	TooltipDescription@other:
-		Description: Capture to give visual range.
+		Description: actor-miss.capturable-desc
 		ValidRelationships: Neutral, Enemy
 	WithBuildingBib:
 		HasMinibib: true

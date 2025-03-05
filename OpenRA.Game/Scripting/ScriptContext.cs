@@ -74,14 +74,17 @@ namespace OpenRA.Scripting
 	/// Provides global bindings in Lua code.
 	/// </summary>
 	/// <remarks>
+	/// <para>
 	/// Instance methods and properties declared in derived classes will be made available in Lua. Use
 	/// <see cref="ScriptGlobalAttribute"/> on your derived class to specify the name exposed in Lua. It is recommended
 	/// to apply <see cref="DescAttribute"/> against each method or property to provide a description of what it does.
-	///
+	/// </para>
+	/// <para>
 	/// Any parameters to your method that are <see cref="LuaValue"/>s will be disposed automatically when your method
 	/// completes. If you need to return any of these values, or need them to live longer than your method, you must
 	/// use <see cref="LuaValue.CopyReference"/> to get your own copy of the value. Any copied values you return will
 	/// be disposed automatically, but you assume responsibility for disposing any other copies.
+	/// </para>
 	/// </remarks>
 	public abstract class ScriptGlobal : ScriptObjectWrapper
 	{
@@ -99,7 +102,7 @@ namespace OpenRA.Scripting
 			if (names.Length != 1)
 				throw new InvalidOperationException($"[ScriptGlobal] attribute not found for global table '{type}'");
 
-			Name = names.First().Name;
+			Name = names[0].Name;
 			Bind(new[] { this });
 		}
 
@@ -111,7 +114,7 @@ namespace OpenRA.Scripting
 				{
 					using (var luaObject = a.ToLuaValue(Context))
 					using (var filterResult = filter.Call(luaObject))
-					using (var result = filterResult.First())
+					using (var result = filterResult[0])
 						return result.ToBoolean();
 				});
 			}
@@ -201,7 +204,7 @@ namespace OpenRA.Scripting
 
 			runtime.Globals["MaxUserScriptInstructions"] = MaxUserScriptInstructions;
 
-			using (var fn = runtime.CreateFunctionFromDelegate((Action<string>)LogDebugMessage))
+			using (var fn = runtime.CreateFunctionFromDelegate(LogDebugMessage))
 				runtime.Globals["print"] = fn;
 
 			// Register global tables
@@ -211,7 +214,7 @@ namespace OpenRA.Scripting
 				var ctor = b.GetConstructors(BindingFlags.Public | BindingFlags.Instance).FirstOrDefault(c =>
 				{
 					var p = c.GetParameters();
-					return p.Length == 1 && p.First().ParameterType == typeof(ScriptContext);
+					return p.Length == 1 && p[0].ParameterType == typeof(ScriptContext);
 				});
 
 				if (ctor == null)

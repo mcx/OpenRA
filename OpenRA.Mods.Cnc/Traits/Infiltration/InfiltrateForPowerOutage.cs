@@ -23,10 +23,14 @@ namespace OpenRA.Mods.Cnc.Traits
 		[Desc("Measured in ticks.")]
 		public readonly int Duration = 500;
 
+		[Desc("Experience to grant to the infiltrating player.")]
+		public readonly int PlayerExperience = 0;
+
 		[NotificationReference("Speech")]
 		[Desc("Sound the victim will hear when they get sabotaged.")]
 		public readonly string InfiltratedNotification = null;
 
+		[FluentReference(optional: true)]
 		[Desc("Text notification the victim will see when they get sabotaged.")]
 		public readonly string InfiltratedTextNotification = null;
 
@@ -34,6 +38,7 @@ namespace OpenRA.Mods.Cnc.Traits
 		[Desc("Sound the perpetrator will hear after successful infiltration.")]
 		public readonly string InfiltrationNotification = null;
 
+		[FluentReference(optional: true)]
 		[Desc("Text notification the perpetrator will see after successful infiltration.")]
 		public readonly string InfiltrationTextNotification = null;
 
@@ -62,8 +67,10 @@ namespace OpenRA.Mods.Cnc.Traits
 			if (info.InfiltrationNotification != null)
 				Game.Sound.PlayNotification(self.World.Map.Rules, infiltrator.Owner, "Speech", info.InfiltrationNotification, infiltrator.Owner.Faction.InternalName);
 
-			TextNotificationsManager.AddTransientLine(info.InfiltratedTextNotification, self.Owner);
-			TextNotificationsManager.AddTransientLine(info.InfiltrationTextNotification, infiltrator.Owner);
+			TextNotificationsManager.AddTransientLine(self.Owner, info.InfiltratedTextNotification);
+			TextNotificationsManager.AddTransientLine(infiltrator.Owner, info.InfiltrationTextNotification);
+
+			infiltrator.Owner.PlayerActor.TraitOrDefault<PlayerExperience>()?.GiveExperience(info.PlayerExperience);
 
 			playerPower.TriggerPowerOutage(info.Duration);
 		}

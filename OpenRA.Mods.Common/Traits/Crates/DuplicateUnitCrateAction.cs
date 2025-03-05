@@ -83,29 +83,51 @@ namespace OpenRA.Mods.Common.Traits
 		public override void Activate(Actor collector)
 		{
 			var positionable = collector.OccupiesSpace as IPositionable;
-			var candidateCells = collector.World.Map.FindTilesInCircle(collector.Location, info.MaxRadius)
-				.Where(c => positionable.CanEnterCell(c)).Shuffle(collector.World.SharedRandom)
-				.ToArray();
-
-			var duplicates = Math.Min(candidateCells.Length, info.MaxAmount);
-
-			// Restrict duplicate count to a maximum value
-			if (info.MaxDuplicateValue > 0)
+			collector.World.AddFrameEndTask(w =>
 			{
-				var vi = collector.Info.TraitInfoOrDefault<ValuedInfo>();
-				if (vi != null && vi.Cost > 0)
-					duplicates = Math.Min(duplicates, info.MaxDuplicateValue / vi.Cost);
-			}
+				var candidateCells = collector.World.Map.FindTilesInCircle(collector.Location, info.MaxRadius)
+					.Where(c => positionable.CanEnterCell(c));
 
-			for (var i = 0; i < duplicates; i++)
-			{
-				var cell = candidateCells[i]; // Avoid modified closure bug
-				collector.World.AddFrameEndTask(w => w.CreateActor(collector.Info.Name, new TypeDictionary
+				var pathFinder = w.WorldActor.TraitOrDefault<IPathFinder>();
+				if (pathFinder != null)
 				{
-					new LocationInit(cell),
-					new OwnerInit(info.Owner ?? collector.Owner.InternalName)
-				}));
-			}
+					var actorRules = w.Map.Rules.Actors[collector.Info.Name];
+					var locomotorName = actorRules.TraitInfoOrDefault<MobileInfo>()?.Locomotor;
+					if (locomotorName != null)
+					{
+						var locomotor = w.WorldActor.TraitsImplementing<Locomotor>().Single(l => l.Info.Name == locomotorName);
+						candidateCells = candidateCells
+							.Where(c => pathFinder.PathMightExistForLocomotorBlockedByImmovable(locomotor, c, collector.Location));
+					}
+				}
+
+				var shuffledCandidateCells = candidateCells
+					.Shuffle(collector.World.SharedRandom)
+					.ToArray();
+
+				var duplicates = Math.Min(shuffledCandidateCells.Length, info.MaxAmount);
+
+				// Restrict duplicate count to a maximum value
+				if (info.MaxDuplicateValue > 0)
+				{
+					var vi = collector.Info.TraitInfoOrDefault<ValuedInfo>();
+					if (vi != null && vi.Cost > 0)
+						duplicates = Math.Min(duplicates, info.MaxDuplicateValue / vi.Cost);
+				}
+
+				for (var i = 0; i < duplicates; i++)
+				{
+					var actor = w.CreateActor(collector.Info.Name, new TypeDictionary
+					{
+						new LocationInit(shuffledCandidateCells[i]),
+						new OwnerInit(info.Owner ?? collector.Owner.InternalName)
+					});
+
+					// Set the subcell and make sure to crush actors beneath.
+					var positionable = actor.OccupiesSpace as IPositionable;
+					positionable.SetPosition(actor, actor.Location, positionable.GetAvailableSubCell(actor.Location, ignoreActor: actor));
+				}
+			});
 
 			base.Activate(collector);
 		}
